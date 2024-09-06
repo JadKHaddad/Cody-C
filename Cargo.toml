@@ -6,7 +6,16 @@ authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 license = "MIT OR Apache-2.0"
 
 [features]
-default = ["codec", "futures", "futures-io", "embedded-io-async", "tokio"]
+default = [
+    "codec",
+    "futures",
+    "futures-io",
+    "embedded-io-async",
+    "tokio",
+    "logging",
+    "char-fmt",
+    "tracing",
+]
 std = [] # Implements std::error::Error for error types
 codec = ["dep:heapless"]
 futures = [
@@ -24,6 +33,8 @@ tokio = [
     "futures-io",
 ] # Enables tokio::AsyncRead, tokio::AsyncWrite and tokio-util::codec compatibility
 logging = [] # Enables logging
+pretty-hex-fmt = [] # Only available with logging feature
+char-fmt = [] # Only available with logging feature
 log = [] # Enables logging with log crate # TODO
 dfmt = [] # Enables logging with dfmt crate and implements defmt::Format # TODO
 tracing = ["dep:tracing"] # Enables logging with tracing crate

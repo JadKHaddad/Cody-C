@@ -57,6 +57,12 @@ const _: () = {
 
     use futures::{Future, Stream};
 
+    #[cfg(all(
+        feature = "logging",
+        any(feature = "log", feature = "dfmt", feature = "tracing")
+    ))]
+    use crate::logging::formatter::Formatter;
+
     use super::{async_read::AsyncRead, decoder::Decoder, frame::Frame};
 
     impl<'a, D, R> Stream for FramedRead<'a, D, R>
@@ -75,7 +81,10 @@ const _: () = {
                 {
                     tracing::trace!("Entering loop");
                     tracing::trace!("Total Read: {}, Index: {}", state.total_read, state.index);
-                    tracing::trace!("Buffer: {:?}", &state.buffer[state.total_read..state.index]);
+                    tracing::trace!(
+                        "Buffer: {:?}",
+                        Formatter(&state.buffer[state.total_read..state.index])
+                    );
                 }
 
                 // Return `None` if we have encountered an error from the underlying decoder
@@ -143,7 +152,7 @@ const _: () = {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     tracing::trace!(
                                         "Buffer: {:?}",
-                                        &state.buffer[state.total_read..state.index]
+                                        Formatter(&state.buffer[state.total_read..state.index])
                                     );
                                 }
 
@@ -276,10 +285,6 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         {
                             tracing::trace!("Read {n} bytes");
-                            tracing::trace!(
-                                "Buffer: {:?}",
-                                &state.buffer[state.total_read..state.index]
-                            );
                             tracing::trace!("Unsetting EOF");
                         }
 
