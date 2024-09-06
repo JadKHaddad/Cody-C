@@ -70,6 +70,7 @@ mod test {
     use std::vec::Vec;
 
     use futures::StreamExt;
+    use tokio::io::AsyncWriteExt;
 
     use super::*;
     use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
@@ -95,6 +96,45 @@ mod test {
             .collect::<Vec<_>>();
 
         assert_eq!(bytes, read_copy);
+    }
+
+    async fn from_slow_reader<const I: usize, const O: usize>() {
+        let chunks = std::vec![
+            Vec::from(b"jh asjd"),
+            Vec::from(b"k hbjsjuwjal kadjjsadhjiuw"),
+            Vec::from(b"jal kadjjsadhjiuwqens "),
+            Vec::from(b"nd "),
+            Vec::from(b"yxxcjajsdiaskdn as"),
+            Vec::from(b"jdasdiouqw es"),
+            Vec::from(b"sd"),
+        ];
+
+        let chunks_copy = chunks.clone();
+
+        let (read, mut write) = tokio::io::duplex(1024);
+
+        tokio::spawn(async move {
+            for chunk in chunks {
+                write.write_all(&chunk).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+        });
+
+        let read = AsyncReadCompat::new(read);
+
+        let codec = BytesCodec::<O>;
+        let buf = &mut [0_u8; I];
+
+        let framed_read = FramedRead::new(codec, read, buf);
+        let byte_chunks: Vec<_> = framed_read.collect().await;
+
+        let bytes = byte_chunks
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert_eq!(bytes, chunks_copy.concat());
     }
 
     #[tokio::test]
@@ -123,5 +163,33 @@ mod test {
         init_tracing();
 
         from_slice::<3, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_tiny_buffers() {
+        init_tracing();
+
+        from_slow_reader::<1, 1>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_same_size() {
+        init_tracing();
+
+        from_slow_reader::<5, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_input_larger() {
+        init_tracing();
+
+        from_slow_reader::<5, 3>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_output_larger() {
+        init_tracing();
+
+        from_slow_reader::<3, 5>().await;
     }
 }
