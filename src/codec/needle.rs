@@ -110,17 +110,14 @@ mod test {
     use super::*;
     use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
 
-    #[tokio::test]
-    async fn one() {
-        init_tracing();
-
-        let read: &mut &[u8] = &mut b"one##".as_ref();
-        let result = std::vec![heapless::Vec::<_, 3>::from_slice(b"one").unwrap(),];
+    async fn one_from_slice<const I: usize, const O: usize>() {
+        let read: &mut &[u8] = &mut b"1##".as_ref();
+        let result = std::vec![heapless::Vec::<_, O>::from_slice(b"1").unwrap(),];
 
         let read = AsyncReadCompat::new(read);
 
-        let codec = NeedleCodec::<3>::new(b"##");
-        let buf = &mut [0_u8; 5];
+        let codec = NeedleCodec::<O>::new(b"##");
+        let buf = &mut [0_u8; I];
 
         let framed_read = FramedRead::new(codec, read, buf);
         let items: Vec<_> = framed_read
@@ -131,5 +128,51 @@ mod test {
             .collect::<Vec<_>>();
 
         assert_eq!(items, result);
+    }
+
+    async fn three_from_slice<const I: usize, const O: usize>() {
+        let read: &mut &[u8] = &mut b"1##2##3##".as_ref();
+        let result = std::vec![
+            heapless::Vec::<_, O>::from_slice(b"1").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"2").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"3").unwrap(),
+        ];
+
+        let read = AsyncReadCompat::new(read);
+
+        let codec = NeedleCodec::<O>::new(b"##");
+        let buf = &mut [0_u8; I];
+
+        let framed_read = FramedRead::new(codec, read, buf);
+        let items: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert_eq!(items, result);
+    }
+
+    #[tokio::test]
+    async fn one_item_one_stroke() {
+        init_tracing();
+
+        one_from_slice::<5, 3>().await;
+    }
+
+    #[tokio::test]
+    async fn three_items_one_stroke() {
+        init_tracing();
+
+        three_from_slice::<9, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn three_items_many_strokes() {
+        init_tracing();
+
+        // Input buffer will refill 3 times.
+        three_from_slice::<3, 5>().await;
     }
 }
