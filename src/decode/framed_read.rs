@@ -3,13 +3,13 @@ use pin_project_lite::pin_project;
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I, D> {
-    /// The buffer is too small to read a frame
+    /// The buffer is too small to read a frame.
     BufferTooSmall,
-    /// An IO error occurred while reading from the underlying source
+    /// An IO error occurred while reading from the underlying source.
     IO(I),
-    /// Decoder consumed more bytes than available in the buffer
+    /// Decoder consumed more bytes than available in the buffer.
     BadDecoder,
-    /// An error occurred while decoding a frame
+    /// An error occurred while decoding a frame.
     Decode(D),
 }
 
