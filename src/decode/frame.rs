@@ -1,4 +1,5 @@
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Frame<T> {
     /// Number of bytes consumed from the buffer
     ///

@@ -1,6 +1,7 @@
 use pin_project_lite::pin_project;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I, D> {
     /// The buffer is too small to read a frame
     BufferTooSmall,
@@ -35,6 +36,8 @@ where
 {
 }
 
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 struct ReadFrame<'a> {
     index: usize,
     eof: bool,
@@ -45,6 +48,8 @@ struct ReadFrame<'a> {
 }
 
 pin_project! {
+    #[derive(Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct FramedRead<'a, D, R> {
         state: ReadFrame<'a>,
         codec: D,
@@ -82,7 +87,7 @@ const _: () = {
 
     #[cfg(all(
         feature = "logging",
-        any(feature = "log", feature = "dfmt", feature = "tracing")
+        any(feature = "log", feature = "defmt", feature = "tracing")
     ))]
     use crate::logging::formatter::Formatter;
 

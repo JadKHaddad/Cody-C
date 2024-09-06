@@ -27,13 +27,13 @@ pub mod tokio;
 
 #[cfg(all(
     feature = "logging",
-    any(feature = "log", feature = "dfmt", feature = "tracing")
+    any(feature = "log", feature = "defmt", feature = "tracing")
 ))]
 #[cfg_attr(
     docsrs,
     doc(cfg(all(
         feature = "logging",
-        any(feature = "log", feature = "dfmt", feature = "tracing")
+        any(feature = "log", feature = "defmt", feature = "tracing")
     )))
 )]
 pub mod logging;

@@ -1,4 +1,5 @@
 /// A simple struct for debugging a byte slice.
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Formatter<'a>(pub &'a [u8]);
 
 impl Formatter<'_> {

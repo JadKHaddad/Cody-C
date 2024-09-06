@@ -37,7 +37,9 @@ logging = [] # Enables logging
 pretty-hex-fmt = [] # Only available with logging feature
 char-fmt = [] # Only available with logging feature
 log = [] # Enables logging with log crate # TODO
-dfmt = [] # Enables logging with dfmt crate and implements defmt::Format # TODO
+defmt = [
+    "dep:defmt",
+] # Enables logging with defmt crate (TODO) and implements defmt::Format
 tracing = ["dep:tracing"] # Enables logging with tracing crate
 
 
@@ -53,6 +55,7 @@ tokio-util = { version = "0.7.11", optional = true, default-features = false, fe
     "codec",
 ] }
 tracing = { version = "0.1.40", optional = true }
+defmt = { version = "0.3.6", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
