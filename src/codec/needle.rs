@@ -98,3 +98,38 @@ const _: () = {
         }
     }
 };
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use std::vec::Vec;
+
+    use futures::StreamExt;
+
+    use super::*;
+    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
+
+    #[tokio::test]
+    async fn one() {
+        init_tracing();
+
+        let read: &mut &[u8] = &mut b"one##".as_ref();
+        let result = std::vec![heapless::Vec::<_, 3>::from_slice(b"one").unwrap(),];
+
+        let read = AsyncReadCompat::new(read);
+
+        let codec = NeedleCodec::<3>::new(b"##");
+        let buf = &mut [0_u8; 5];
+
+        let framed_read = FramedRead::new(codec, read, buf);
+        let items: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert_eq!(items, result);
+    }
+}
