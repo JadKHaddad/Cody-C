@@ -1,0 +1,51 @@
+[package]
+name = "cody-c"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+[features]
+default = ["codec", "futures", "futures-io", "embedded-io-async", "tokio"]
+std = [] # Implements std::error::Error for error types
+codec = ["dep:heapless"]
+futures = [
+    "dep:futures",
+] # Enables futures::Stream and futures::Sink compatibility
+futures-io = [
+    "futures/std",
+] # Enables futures::io::AsyncRead and futures::io::AsyncWrite compatibility
+embedded-io-async = [
+    "dep:embedded-io-async",
+] # Enables embedded-io-async::Read and embedded-io-async::Write compatibility
+tokio = [
+    "dep:tokio",
+    "dep:tokio-util",
+    "futures-io",
+] # Enables tokio::AsyncRead, tokio::AsyncWrite and tokio-util::codec compatibility
+tracing = ["dep:tracing"] # Enables tracing
+
+[dependencies]
+pin-project-lite = "0.2.14"
+heapless = { version = "0.8.0", optional = true }
+futures = { version = "0.3.3", default-features = false, optional = true }
+embedded-io-async = { version = "0.6.1", optional = true }
+tokio = { version = "1.37.0", optional = true, default-features = false, features = [
+    "io-util",
+] }
+tokio-util = { version = "0.7.11", optional = true, default-features = false, features = [
+    "codec",
+] }
+tracing = { version = "0.1.40", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7.11", features = ["codec"] }
+tokio-test = "0.4.4"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+futures = "0.3.3"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
