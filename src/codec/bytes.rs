@@ -66,19 +66,15 @@ const _: () = {
 #[cfg(test)]
 mod test {
     extern crate std;
+
     use std::vec::Vec;
 
     use futures::StreamExt;
 
     use super::*;
-    use crate::decode::framed_read::FramedRead;
-    use crate::test::init_tracing;
-    use crate::tokio::AsyncReadCompat;
+    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
 
-    #[tokio::test]
-    async fn from_slice() {
-        init_tracing();
-
+    async fn from_slice<const I: usize, const O: usize>() {
         let read =
             &mut b"jh asjdk hbjsjuwjal kadjjsadhjiuwqens nd yxxcjajsdiaskdn asjdasdiouqw essd"
                 .as_ref();
@@ -86,8 +82,8 @@ mod test {
 
         let read = AsyncReadCompat::new(read);
 
-        let codec = BytesCodec::<5>;
-        let buf = &mut [0_u8; 10];
+        let codec = BytesCodec::<O>;
+        let buf = &mut [0_u8; I];
 
         let framed_read = FramedRead::new(codec, read, buf);
         let byte_chunks: Vec<_> = framed_read.collect().await;
@@ -99,5 +95,33 @@ mod test {
             .collect::<Vec<_>>();
 
         assert_eq!(bytes, read_copy);
+    }
+
+    #[tokio::test]
+    async fn from_slice_tiny_buffers() {
+        init_tracing();
+
+        from_slice::<1, 1>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slice_same_size() {
+        init_tracing();
+
+        from_slice::<5, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slice_input_larger() {
+        init_tracing();
+
+        from_slice::<5, 3>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slice_output_larger() {
+        init_tracing();
+
+        from_slice::<3, 5>().await;
     }
 }
