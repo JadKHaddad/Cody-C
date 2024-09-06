@@ -23,7 +23,11 @@ tokio = [
     "dep:tokio-util",
     "futures-io",
 ] # Enables tokio::AsyncRead, tokio::AsyncWrite and tokio-util::codec compatibility
-tracing = ["dep:tracing"] # Enables tracing
+logging = [] # Enables logging
+log = [] # Enables logging with log crate # TODO
+dfmt = [] # Enables logging with dfmt crate and implements defmt::Format # TODO
+tracing = ["dep:tracing"] # Enables logging with tracing crate
+
 
 [dependencies]
 pin-project-lite = "0.2.14"
