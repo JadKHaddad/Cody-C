@@ -25,6 +25,15 @@ pub mod embedded_io_async;
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub mod tokio;
 
-#[cfg(feature = "logging")]
-#[cfg_attr(docsrs, doc(cfg(feature = "logging")))]
+#[cfg(all(
+    feature = "logging",
+    any(feature = "log", feature = "dfmt", feature = "tracing")
+))]
+#[cfg_attr(
+    docsrs,
+    doc(cfg(all(
+        feature = "logging",
+        any(feature = "log", feature = "dfmt", feature = "tracing")
+    )))
+)]
 pub mod logging;
