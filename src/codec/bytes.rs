@@ -11,8 +11,6 @@ pub struct BytesCodec<const N: usize>;
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BytesCodecError {
-    /// The decoded sequesnce of bytes is too large to fit into the return buffer.
-    OutputBufferTooSmall,
     DecoderError(DecoderError),
 }
 
@@ -25,7 +23,6 @@ impl From<DecoderError> for BytesCodecError {
 impl core::fmt::Display for BytesCodecError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
             Self::DecoderError(err) => write!(f, "Decoder error: {}", err),
         }
     }
@@ -52,12 +49,55 @@ const _: () = {
                 tracing::debug!(buf=?buf, "Decoding");
             }
 
-            let item = heapless::Vec::from_slice(buf)
-                .map_err(|_| BytesCodecError::OutputBufferTooSmall)?;
+            let size = match buf.len() {
+                0 => return Ok(None),
+                n if n > N => N,
+                n => n,
+            };
 
-            let frame = Frame::new(buf.len(), item);
+            let item = heapless::Vec::from_slice(&buf[..size]).expect("unreachable");
+            let frame = Frame::new(size, item);
 
             Ok(Some(frame))
         }
     }
 };
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+    use std::vec::Vec;
+
+    use futures::StreamExt;
+
+    use super::*;
+    use crate::decode::framed_read::FramedRead;
+    use crate::test::init_tracing;
+    use crate::tokio::AsyncReadCompat;
+
+    #[tokio::test]
+    async fn from_slice() {
+        init_tracing();
+
+        let read =
+            &mut b"jh asjdk hbjsjuwjal kadjjsadhjiuwqens nd yxxcjajsdiaskdn asjdasdiouqw essd"
+                .as_ref();
+        let read_copy = &read[..];
+
+        let read = AsyncReadCompat::new(read);
+
+        let codec = BytesCodec::<5>;
+        let buf = &mut [0_u8; 10];
+
+        let framed_read = FramedRead::new(codec, read, buf);
+        let byte_chunks: Vec<_> = framed_read.collect().await;
+
+        let bytes = byte_chunks
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert_eq!(bytes, read_copy);
+    }
+}

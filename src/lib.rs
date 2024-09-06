@@ -37,3 +37,6 @@ pub mod tokio;
     )))
 )]
 pub mod logging;
+
+#[cfg(test)]
+mod test;
