@@ -1,5 +1,8 @@
 use tokio_util::bytes::Buf;
 
+/// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead).
+///
+/// Converts a [`Tokio's AsyncRead`](tokio::io::AsyncRead) into a [`Crate's AsyncRead`](crate::decode::async_read::AsyncRead).
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AsyncReadCompat<R>(R);
@@ -58,6 +61,9 @@ const _: () = {
     }
 };
 
+/// Compatibility wrapper for [`Tokio's Decoder`](tokio_util::codec::Decoder).
+///
+/// Converts a [`Crate's Decoder`](crate::decode::decoder::Decoder) into a [`Tokio's Decoder`](tokio_util::codec::Decoder).
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct TokioDecoderCompat<D>(D);
