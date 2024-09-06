@@ -6,6 +6,17 @@ pub enum Error {
     BytesRemainingOnStream,
 }
 
+impl core::fmt::Display for Error {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::BytesRemainingOnStream => write!(f, "Bytes remaining on stream"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for Error {}
+
 pub trait Decoder {
     type Item;
     type Error: core::convert::From<Error>;

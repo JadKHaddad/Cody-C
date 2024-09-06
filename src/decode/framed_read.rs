@@ -12,6 +12,29 @@ pub enum Error<I, D> {
     Decode(D),
 }
 
+impl<I, D> core::fmt::Display for Error<I, D>
+where
+    I: core::fmt::Display,
+    D: core::fmt::Display,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::BufferTooSmall => write!(f, "Buffer too small"),
+            Self::BadDecoder => write!(f, "Bad decoder"),
+            Self::Decode(err) => write!(f, "Decode error: {}", err),
+            Self::IO(err) => write!(f, "IO error: {}", err),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<I, D> std::error::Error for Error<I, D>
+where
+    I: std::error::Error,
+    D: std::error::Error,
+{
+}
+
 struct ReadFrame<'a> {
     index: usize,
     eof: bool,
