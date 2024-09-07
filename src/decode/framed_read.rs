@@ -134,7 +134,7 @@ const _: () = {
     use core::{
         borrow::BorrowMut,
         pin::{pin, Pin},
-        task::{Context, Poll},
+        task::{ready, Context, Poll},
     };
 
     use futures::{Future, Stream};
@@ -331,8 +331,9 @@ const _: () = {
                 // that we don't get a spurious 0 that looks like EOF.
 
                 let fut = pin!(this.inner.read(&mut state.buffer[state.index..]));
-                match fut.poll(cx) {
-                    Poll::Ready(Err(err)) => {
+                match ready!(fut.poll(cx)) {
+                    // Pending -> implicit reading -> reading or implicit paused -> paused
+                    Err(err) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Failed to read. Setting error");
 
@@ -340,7 +341,7 @@ const _: () = {
 
                         return Poll::Ready(Some(Err(Error::IO(err))));
                     }
-                    Poll::Ready(Ok(0)) => {
+                    Ok(0) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Got EOF");
 
@@ -361,7 +362,7 @@ const _: () = {
                         // prepare reading -> paused
                         state.eof = true;
                     }
-                    Poll::Ready(Ok(n)) => {
+                    Ok(n) => {
                         state.index += n;
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -373,9 +374,6 @@ const _: () = {
                         // prepare paused -> framing or noop reading -> framing
                         state.eof = false;
                     }
-
-                    // implicit reading -> reading or implicit paused -> paused
-                    Poll::Pending => return Poll::Pending,
                 }
 
                 #[cfg(all(feature = "logging", feature = "tracing"))]
