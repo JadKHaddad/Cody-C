@@ -129,7 +129,7 @@ mod test {
         let codec = NeedleCodec::<O>::new(b"##");
         let buf = &mut [0_u8; I];
 
-        let framed_read = FramedRead::new(codec, read, buf);
+        let framed_read = FramedRead::new(read, codec, buf);
         let items: Vec<_> = framed_read
             .collect::<Vec<_>>()
             .await
@@ -151,7 +151,7 @@ mod test {
         let codec = NeedleCodec::<O>::new(b"##");
         let buf = &mut [0_u8; I];
 
-        let framed_read = FramedRead::new(codec, read, buf);
+        let framed_read = FramedRead::new(read, codec, buf);
         let items: Vec<_> = framed_read
             .collect::<Vec<_>>()
             .await

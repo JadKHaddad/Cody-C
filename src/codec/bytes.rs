@@ -87,7 +87,7 @@ mod test {
         let codec = BytesCodec::<O>;
         let buf = &mut [0_u8; I];
 
-        let framed_read = FramedRead::new(codec, read, buf);
+        let framed_read = FramedRead::new(read, codec, buf);
         let byte_chunks: Vec<_> = framed_read.collect().await;
 
         let bytes = byte_chunks
@@ -126,7 +126,7 @@ mod test {
         let codec = BytesCodec::<O>;
         let buf = &mut [0_u8; I];
 
-        let framed_read = FramedRead::new(codec, read, buf);
+        let framed_read = FramedRead::new(read, codec, buf);
         let byte_chunks: Vec<_> = framed_read.collect().await;
 
         let bytes = byte_chunks

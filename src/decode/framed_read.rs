@@ -93,7 +93,7 @@ pin_project! {
 }
 
 impl<'a, D, R> FramedRead<'a, D, R> {
-    pub fn new(codec: D, inner: R, buffer: &'a mut [u8]) -> Self {
+    pub fn new(inner: R, codec: D, buffer: &'a mut [u8]) -> Self {
         Self {
             state: ReadFrame {
                 index: 0,

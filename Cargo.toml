@@ -71,6 +71,11 @@ tokio-test = "0.4.4"
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 futures = "0.3.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "async_read_lines"
+harness = false
 
 [package.metadata.docs.rs]
 all-features = true
