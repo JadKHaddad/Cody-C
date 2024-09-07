@@ -9,6 +9,7 @@ readme = "README.md"
 [features]
 default = [
     "codec",
+    "iter",
     "futures",
     "embedded-io-async",
     # dev for now, TODO remove
@@ -18,9 +19,9 @@ default = [
     # "char-fmt",
     # "tracing",
 ]
-std = [
-] # Implements std::error::Error for error types and core::iter::Iterator using std::io::Read # TODO
+std = [] # Implements std::error::Error for error types
 codec = ["dep:heapless"] # Enables ready-to-use codec implementations
+iter = [] # Implements core::iter::Iterator # TODO
 futures = ["dep:futures"] # Implements futures::Stream and futures::Sink
 futures-io = [
     "futures/std",
