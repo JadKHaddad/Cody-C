@@ -14,8 +14,28 @@ impl<R> AsyncReadCompat<R> {
         AsyncReadCompat(inner)
     }
 
+    pub const fn inner(&self) -> &R {
+        &self.0
+    }
+
+    pub fn inner_mut(&mut self) -> &mut R {
+        &mut self.0
+    }
+
     pub fn into_inner(self) -> R {
         self.0
+    }
+}
+
+impl<R> Borrow<R> for AsyncReadCompat<R> {
+    fn borrow(&self) -> &R {
+        self.inner()
+    }
+}
+
+impl<R> BorrowMut<R> for AsyncReadCompat<R> {
+    fn borrow_mut(&mut self) -> &mut R {
+        self.inner_mut()
     }
 }
 
@@ -28,6 +48,12 @@ impl<R> AsRef<R> for AsyncReadCompat<R> {
 impl<R> AsMut<R> for AsyncReadCompat<R> {
     fn as_mut(&mut self) -> &mut R {
         &mut self.0
+    }
+}
+
+impl<R> From<R> for AsyncReadCompat<R> {
+    fn from(inner: R) -> Self {
+        Self::new(inner)
     }
 }
 
