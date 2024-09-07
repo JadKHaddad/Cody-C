@@ -75,12 +75,16 @@ impl<'a, D, R> FramedRead<'a, D, R> {
         }
     }
 
+    pub const fn codec(&self) -> &D {
+        &self.codec
+    }
+
     pub const fn inner(&self) -> &R {
         &self.inner
     }
 
-    pub fn inner_mut(&mut self) -> &mut R {
-        &mut self.inner
+    pub fn into_codec(self) -> D {
+        self.codec
     }
 
     pub fn into_inner(self) -> R {

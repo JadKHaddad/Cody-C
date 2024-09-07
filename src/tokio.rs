@@ -1,3 +1,5 @@
+use core::borrow::{Borrow, BorrowMut};
+
 use tokio_util::bytes::Buf;
 
 /// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead).
@@ -73,20 +75,46 @@ impl<D> TokioDecoderCompat<D> {
         TokioDecoderCompat(inner)
     }
 
+    pub const fn inner(&self) -> &D {
+        &self.0
+    }
+
+    pub fn inner_mut(&mut self) -> &mut D {
+        &mut self.0
+    }
+
     pub fn into_inner(self) -> D {
         self.0
     }
 }
 
+impl<D> Borrow<D> for TokioDecoderCompat<D> {
+    fn borrow(&self) -> &D {
+        self.inner()
+    }
+}
+
+impl<D> BorrowMut<D> for TokioDecoderCompat<D> {
+    fn borrow_mut(&mut self) -> &mut D {
+        self.inner_mut()
+    }
+}
+
 impl<D> AsRef<D> for TokioDecoderCompat<D> {
     fn as_ref(&self) -> &D {
-        &self.0
+        self.inner()
     }
 }
 
 impl<D> AsMut<D> for TokioDecoderCompat<D> {
     fn as_mut(&mut self) -> &mut D {
-        &mut self.0
+        self.inner_mut()
+    }
+}
+
+impl<D> From<D> for TokioDecoderCompat<D> {
+    fn from(inner: D) -> Self {
+        Self::new(inner)
     }
 }
 
