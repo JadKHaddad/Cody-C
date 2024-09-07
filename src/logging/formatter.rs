@@ -37,16 +37,16 @@ impl Formatter<'_> {
         }
 
         if self.0.len() == 1 {
-            write!(f, "['{}']", self.0[0] as char)?;
+            write!(f, "[{:?}]", self.0[0] as char)?;
 
             return Ok(());
         }
 
         write!(f, "[")?;
         for i in 0..self.0.len() - 1 {
-            write!(f, "'{}', ", self.0[i] as char)?;
+            write!(f, "{:?}, ", self.0[i] as char)?;
         }
-        write!(f, "'{}']", self.0[self.0.len() - 1] as char)?;
+        write!(f, "{:?}]", self.0[self.0.len() - 1] as char)?;
 
         Ok(())
     }

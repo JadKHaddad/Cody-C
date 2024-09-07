@@ -13,11 +13,11 @@ default = [
     "futures",
     "embedded-io-async",
     # dev for now, TODO remove
-    # "futures-io",
-    # "tokio",
-    # "logging",
-    # "char-fmt",
-    # "tracing",
+    "futures-io",
+    "tokio",
+    "logging",
+    "char-fmt",
+    "tracing",
 ]
 std = [
 ] # Implements std::error::Error for error types and enables std::io::Read compatibility
