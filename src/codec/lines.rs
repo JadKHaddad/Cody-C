@@ -167,7 +167,7 @@ const _: () = {
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
                         let buf = Formatter(line_bytes_with_n);
-                        tracing::debug!(line_bytes=?buf, "Found");
+                        tracing::debug!(line=?buf, "Found");
                     }
 
                     let line_bytes_without_n = &buf[..self.seen];
@@ -180,7 +180,8 @@ const _: () = {
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
                         let buf = Formatter(line_bytes);
-                        tracing::debug!(line_bytes=?buf, "Taking");
+                        let consuming = self.seen + 1;
+                        tracing::debug!(frame=?buf, %consuming, "Framing");
                     }
 
                     let item = heapless::Vec::from_slice(line_bytes)

@@ -55,6 +55,12 @@ const _: () = {
                 n => n,
             };
 
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            {
+                let buf = Formatter(&buf[..size]);
+                tracing::debug!(frame=?buf, consuming=%size, "Framing");
+            }
+
             let item = heapless::Vec::from_slice(&buf[..size]).expect("unreachable");
             let frame = Frame::new(size, item);
 

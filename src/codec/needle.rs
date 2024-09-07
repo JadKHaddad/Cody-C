@@ -81,6 +81,18 @@ const _: () = {
 
             while self.seen < buf.len() {
                 if buf[self.seen..].starts_with(self.needle) {
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    {
+                        {
+                            let buf = Formatter(&buf[..self.seen + self.needle.len()]);
+                            tracing::debug!(sequence=?buf, "Found");
+                        }
+
+                        let buf = Formatter(&buf[..self.seen]);
+                        let consuming = self.seen + self.needle.len();
+                        tracing::debug!(frame=?buf, %consuming, "Framing");
+                    }
+
                     let item = heapless::Vec::from_slice(&buf[..self.seen])
                         .map_err(|_| NeedleCodecError::OutputBufferTooSmall)?;
 
