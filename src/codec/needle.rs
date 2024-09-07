@@ -111,16 +111,17 @@ const _: () = {
     }
 };
 
-#[cfg(all(test, feature = "futures"))]
+#[cfg(all(test, feature = "futures", feature = "tokio"))]
 mod test {
     extern crate std;
 
     use std::vec::Vec;
 
     use futures::StreamExt;
+    use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing};
+    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
 
     async fn one_from_slice<const I: usize, const O: usize>() {
         let read: &[u8] = b"1##";
@@ -162,6 +163,51 @@ mod test {
         assert_eq!(items, result);
     }
 
+    async fn from_slow_reader<const I: usize, const O: usize>() {
+        let chunks = std::vec![
+            Vec::from(b"jh asjd##"),
+            Vec::from(b"k hb##jsjuwjal kadj##jsadhjiu##w"),
+            Vec::from(b"##jal kadjjsadhjiuwqens ##"),
+            Vec::from(b"nd "),
+            Vec::from(b"yxxcjajsdi##askdn as"),
+            Vec::from(b"jdasd##iouqw es"),
+            Vec::from(b"sd##"),
+        ];
+
+        let result = std::vec![
+            heapless::Vec::<_, O>::from_slice(b"jh asjd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"k hb").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsjuwjal kadj").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsadhjiu").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"w").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jal kadjjsadhjiuwqens ").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"nd yxxcjajsdi").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"askdn asjdasd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"iouqw essd").unwrap(),
+        ];
+
+        let (read, mut write) = tokio::io::duplex(1024);
+
+        tokio::spawn(async move {
+            for chunk in chunks {
+                write.write_all(&chunk).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+        });
+
+        let read = AsyncReadCompat::new(read);
+
+        let codec = NeedleCodec::<O>::new(b"##");
+        let buf = &mut [0_u8; I];
+
+        let framed_read = FramedRead::new(read, codec, buf);
+        let byte_chunks: Vec<_> = framed_read.collect().await;
+
+        let bytes: Vec<_> = byte_chunks.into_iter().flatten().collect::<Vec<_>>();
+
+        assert_eq!(bytes, result);
+    }
+
     #[tokio::test]
     async fn one_item_one_stroke() {
         init_tracing();
@@ -182,5 +228,19 @@ mod test {
 
         // Input buffer will refill 3 times.
         three_from_slice::<3, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_small_buffer() {
+        init_tracing();
+
+        from_slow_reader::<32, 24>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_large_buffer() {
+        init_tracing();
+
+        from_slow_reader::<1024, 24>().await;
     }
 }
