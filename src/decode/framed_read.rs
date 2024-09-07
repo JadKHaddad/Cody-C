@@ -158,7 +158,6 @@ const _: () = {
             let mut this = self.project();
             let state = this.state.borrow_mut();
 
-            // FIXME: We avoid decoding an empty buffer, but on eof this might happen
             loop {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
                 {
@@ -194,6 +193,18 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Framing on EOF");
 
+                        if state.total_consumed == state.index {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::debug!("Buffer empty");
+                                tracing::trace!("Setting unframable");
+                            }
+
+                            state.is_framable = false;
+
+                            return Poll::Ready(None);
+                        }
+
                         // pausing
                         match this
                             .codec
@@ -218,20 +229,6 @@ const _: () = {
                                     return Poll::Ready(Some(Err(Error::BadDecoder)));
                                 }
 
-                                // Avboid framing an empty buffer
-                                if state.total_consumed == state.index {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::debug!("Resetting empty buffer");
-                                        tracing::trace!("Setting unframable");
-                                    }
-
-                                    state.total_consumed = 0;
-                                    state.index = 0;
-
-                                    state.is_framable = false;
-                                }
-
                                 return Poll::Ready(Some(Ok(item)));
                             }
                             Ok(None) => {
@@ -239,17 +236,6 @@ const _: () = {
                                 {
                                     tracing::debug!("No frame decoded");
                                     tracing::trace!("Setting unframable");
-                                }
-
-                                if state.total_consumed > 0 {
-                                    state
-                                        .buffer
-                                        .copy_within(state.total_consumed..state.index, 0);
-                                    state.index -= state.total_consumed;
-                                    state.total_consumed = 0;
-
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::debug!("Buffer shifted");
                                 }
 
                                 // prepare pausing -> paused
