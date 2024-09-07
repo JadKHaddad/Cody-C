@@ -36,16 +36,49 @@ where
 {
 }
 
-// TODO: fields are only used in "fututres" feature
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-struct ReadFrame<'a> {
+pub struct ReadFrame<'a> {
+    /// The current index in the buffer.
+    ///
+    /// Represents the number of bytes read into the buffer.
     index: usize,
+    /// EOF was reached while decoding.
     eof: bool,
+    /// The buffer is currently framable.
     is_framable: bool,
+    /// An error occurred while decoding a frame.
     has_errored: bool,
+    /// Total number of bytes decoded in framing round.
     total_read: usize,
+    /// The underlying buffer to read into.
     buffer: &'a mut [u8],
+}
+
+impl<'a> ReadFrame<'a> {
+    pub const fn index(&self) -> usize {
+        self.index
+    }
+
+    pub const fn eof(&self) -> bool {
+        self.eof
+    }
+
+    pub const fn is_framable(&self) -> bool {
+        self.is_framable
+    }
+
+    pub const fn has_errored(&self) -> bool {
+        self.has_errored
+    }
+
+    pub const fn total_read(&self) -> usize {
+        self.total_read
+    }
+
+    pub const fn buffer(&'a self) -> &'a [u8] {
+        self.buffer
+    }
 }
 
 pin_project! {
@@ -73,6 +106,10 @@ impl<'a, D, R> FramedRead<'a, D, R> {
             codec,
             inner,
         }
+    }
+
+    pub const fn state(&self) -> &ReadFrame<'a> {
+        &self.state
     }
 
     pub const fn codec(&self) -> &D {

@@ -13,10 +13,10 @@ default = [
     "futures-io",
     "embedded-io-async",
     # dev for now, TODO remove
-    "tokio",
-    "logging",
-    "char-fmt",
-    "tracing",
+    # "tokio",
+    # "logging",
+    # "char-fmt",
+    # "tracing",
 ]
 std = [
 ] # Implements std::error::Error for error types and core::iter::Iterator using std::io::Read # TODO
@@ -43,7 +43,9 @@ log = [] # Enables logging with log crate # TODO
 defmt = [
     "dep:defmt",
 ] # Enables logging with defmt crate and implements defmt::Format # TODO
-tracing = ["dep:tracing"] # Enables logging with tracing crate
+tracing = [
+    "dep:tracing",
+] # Enables logging with tracing crate. Only available with logging feature
 
 [dependencies]
 pin-project-lite = "0.2.14"

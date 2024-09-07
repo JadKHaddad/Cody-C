@@ -1,0 +1,96 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  tests:
+    name: Tests
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+          - nightly
+        os:
+          - ubuntu-latest
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+        
+      - name: Format
+        run: cargo fmt -- --check
+
+      - name: Clippy --no-default-features 
+        run: cargo clippy --no-default-features -- -D warnings
+      
+      - name: Clippy -- default
+        run: cargo clippy --features=default -- -D warnings
+
+      - name: Clippy -- std
+        run: cargo clippy --features=std -- -D warnings
+
+      - name: Clippy -- codec
+        run: cargo clippy --features=codec -- -D warnings
+      
+      - name: Clippy -- futures
+        run: cargo clippy --features=futures -- -D warnings
+      
+      - name: Clippy -- futures-io
+        run: cargo clippy --features=futures-io -- -D warnings
+
+      - name: Clippy -- embedded-io-async
+        run: cargo clippy --features=embedded-io-async -- -D warnings
+
+      - name: Clippy -- tokio
+        run: cargo clippy --features=tokio -- -D warnings
+
+      - name: Clippy -- defmt
+        run: cargo clippy --features=defmt -- -D warnings
+
+      - name: Clippy -- logging
+        run: cargo clippy --features=logging -- -D warnings
+
+      - name: Clippy -- logging pretty-hex-fmt
+        run: cargo clippy --features="logging,pretty-hex-fmt" -- -D warnings
+
+      - name: Clippy -- logging char-fmt
+        run: cargo clippy --features="logging,char-fmt" -- -D warnings
+
+      - name: Clippy -- logging log
+        run: cargo clippy --features="logging,log" -- -D warnings
+
+      - name: Clippy -- logging defmt
+        run: cargo clippy --features="logging,defmt" -- -D warnings
+
+      - name: Clippy -- logging tracing
+        run: cargo clippy --features="logging,tracing" -- -D warnings
+
+      - name: Clippy --all-features
+        run: cargo clippy --all --all-features -- -D warnings
+        
+      - name: Test
+        run: cargo test --features "futures,codec,tokio"
