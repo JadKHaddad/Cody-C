@@ -2,11 +2,6 @@
 #![deny(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-#[cfg(all(feature = "pretty-hex-fmt", feature = "char-fmt"))]
-compile_error!(
-    "Only one of the features `pretty-hex-fmt` and `char-fmt` can be enabled at a time."
-);
-
 pub mod decode;
 
 #[cfg(feature = "codec")]
@@ -38,5 +33,5 @@ pub mod tokio;
 )]
 pub mod logging;
 
-#[cfg(test)]
+#[cfg(all(test, any(feature = "futures", feature = "codec"), feature = "tokio"))]
 mod test;

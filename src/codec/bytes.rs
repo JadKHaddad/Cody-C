@@ -29,7 +29,7 @@ impl core::fmt::Display for BytesCodecError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for NeedleCodecError {}
+impl std::error::Error for BytesCodecError {}
 
 const _: () = {
     #[cfg(all(
@@ -63,7 +63,7 @@ const _: () = {
     }
 };
 
-#[cfg(test)]
+#[cfg(all(test, feature = "futures", feature = "tokio"))]
 mod test {
     extern crate std;
 

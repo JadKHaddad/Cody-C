@@ -36,6 +36,7 @@ where
 {
 }
 
+// TODO: fields are only used in "fututres" feature
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 struct ReadFrame<'a> {

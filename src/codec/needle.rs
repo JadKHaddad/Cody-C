@@ -99,7 +99,7 @@ const _: () = {
     }
 };
 
-#[cfg(test)]
+#[cfg(all(test, feature = "futures", feature = "tokio"))]
 mod test {
     extern crate std;
 

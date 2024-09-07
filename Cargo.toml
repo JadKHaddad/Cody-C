@@ -12,10 +12,11 @@ default = [
     "futures",
     "futures-io",
     "embedded-io-async",
-    "tokio",
-    "logging",
-    "char-fmt",
-    "tracing",
+    # dev for now, TODO remove
+    # "tokio",
+    # "logging",
+    # "char-fmt",
+    # "tracing",
 ]
 std = [] # Implements std::error::Error for error types
 codec = ["dep:heapless"]
@@ -61,10 +62,16 @@ defmt = { version = "0.3.6", optional = true }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.11", features = ["codec"] }
 tokio-test = "0.4.4"
-tracing = "0.1.40"
+tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 futures = "0.3.3"
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+# cargo test --features "futures, codec, tokio" # will test stream, sink and codec
+# tokio will bring compat into scope
+# futures will bring stream and sink into scope
+# codec will bring codec into scope
+# DO NOT RUN: cargo test --all-features (defmt will not compile)

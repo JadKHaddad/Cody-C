@@ -4,7 +4,7 @@ pub struct Formatter<'a>(pub &'a [u8]);
 
 impl Formatter<'_> {
     /// Produces: [0x00, 0x00, 0x00, 0x6F]
-    #[cfg(feature = "pretty-hex-fmt")]
+    #[cfg(all(feature = "pretty-hex-fmt", not(feature = "char-fmt")))]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.0.is_empty() {
             write!(f, "[]")?;
@@ -28,7 +28,7 @@ impl Formatter<'_> {
     }
 
     /// Produces: ['0', '0', '0', 'o']
-    #[cfg(feature = "char-fmt")]
+    #[cfg(all(feature = "char-fmt", not(feature = "pretty-hex-fmt")))]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         if self.0.is_empty() {
             write!(f, "[]")?;
@@ -52,7 +52,10 @@ impl Formatter<'_> {
     }
 
     /// Produces: [00, 00, 00, 6F]
-    #[cfg(all(not(feature = "pretty-hex-fmt"), not(feature = "char-fmt")))]
+    #[cfg(any(
+        all(not(feature = "pretty-hex-fmt"), not(feature = "char-fmt")),
+        all(feature = "pretty-hex-fmt", feature = "char-fmt")
+    ))]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{:02X?}", self.0)
     }
