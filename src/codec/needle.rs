@@ -111,7 +111,7 @@ const _: () = {
     }
 };
 
-#[cfg(all(test, feature = "futures", feature = "tokio"))]
+#[cfg(all(test, feature = "futures"))]
 mod test {
     extern crate std;
 
@@ -120,13 +120,11 @@ mod test {
     use futures::StreamExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
+    use crate::{decode::framed_read::FramedRead, test::init_tracing};
 
     async fn one_from_slice<const I: usize, const O: usize>() {
-        let read: &mut &[u8] = &mut b"1##".as_ref();
+        let read: &[u8] = b"1##";
         let result = std::vec![heapless::Vec::<_, O>::from_slice(b"1").unwrap(),];
-
-        let read = AsyncReadCompat::new(read);
 
         let codec = NeedleCodec::<O>::new(b"##");
         let buf = &mut [0_u8; I];
@@ -143,14 +141,12 @@ mod test {
     }
 
     async fn three_from_slice<const I: usize, const O: usize>() {
-        let read: &mut &[u8] = &mut b"1##2##3##".as_ref();
+        let read: &[u8] = b"1##2##3##";
         let result = std::vec![
             heapless::Vec::<_, O>::from_slice(b"1").unwrap(),
             heapless::Vec::<_, O>::from_slice(b"2").unwrap(),
             heapless::Vec::<_, O>::from_slice(b"3").unwrap(),
         ];
-
-        let read = AsyncReadCompat::new(read);
 
         let codec = NeedleCodec::<O>::new(b"##");
         let buf = &mut [0_u8; I];

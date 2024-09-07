@@ -76,8 +76,8 @@ futures = "0.3.3"
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-# cargo test --features "futures, codec, tokio" # will test stream, sink and codec
-# tokio will bring compat into scope
+# cargo test --features "futures, codec, tokio" # will test stream, sink and codec. 
+# tokio will bring `AsyncReadCompat` into scope for the duplex
 # futures will bring stream and sink into scope
 # codec will bring codec into scope
 # DO NOT RUN: cargo test --all-features (defmt will not compile)

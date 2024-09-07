@@ -82,13 +82,8 @@ mod test {
     use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
 
     async fn from_slice<const I: usize, const O: usize>() {
-        let read =
-            &mut b"jh asjdk hbjsjuwjal kadjjsadhjiuwqens nd yxxcjajsdiaskdn asjdasdiouqw essd"
-                .as_ref();
-        let read_copy = &read[..];
-
-        let read = AsyncReadCompat::new(read);
-
+        let read: &[u8] =
+            b"jh asjdk hbjsjuwjal kadjjsadhjiuwqens nd yxxcjajsdiaskdn asjdasdiouqw essd";
         let codec = BytesCodec::<O>;
         let buf = &mut [0_u8; I];
 
@@ -101,7 +96,7 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
 
-        assert_eq!(bytes, read_copy);
+        assert_eq!(bytes, read);
     }
 
     async fn from_slow_reader<const I: usize, const O: usize>() {
