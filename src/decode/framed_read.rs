@@ -49,8 +49,8 @@ pub struct ReadFrame<'a> {
     is_framable: bool,
     /// An error occurred while decoding a frame.
     has_errored: bool,
-    /// Total number of bytes decoded in framing round.
-    total_read: usize,
+    /// Total number of bytes decoded in a framing round.
+    total_consumed: usize,
     /// The underlying buffer to read into.
     buffer: &'a mut [u8],
 }
@@ -72,8 +72,8 @@ impl<'a> ReadFrame<'a> {
         self.has_errored
     }
 
-    pub const fn total_read(&self) -> usize {
-        self.total_read
+    pub const fn total_consumed(&self) -> usize {
+        self.total_consumed
     }
 
     pub const fn buffer(&'a self) -> &'a [u8] {
@@ -100,7 +100,7 @@ impl<'a, D, R> FramedRead<'a, D, R> {
                 eof: false,
                 is_framable: false,
                 has_errored: false,
-                total_read: 0,
+                total_consumed: 0,
                 buffer,
             },
             codec,
@@ -158,15 +158,13 @@ const _: () = {
             let mut this = self.project();
             let state = this.state.borrow_mut();
 
+            // FIXME: We avoid decoding an empty buffer, but on eof this might happen
             loop {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
                 {
+                    let buf = Formatter(&state.buffer[state.total_consumed..state.index]);
                     tracing::trace!("Entering loop");
-                    tracing::trace!("Total Read: {}, Index: {}", state.total_read, state.index);
-                    tracing::trace!(
-                        "Buffer: {:?}",
-                        Formatter(&state.buffer[state.total_read..state.index])
-                    );
+                    tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
                 }
 
                 // Return `None` if we have encountered an error from the underlying decoder
@@ -199,43 +197,59 @@ const _: () = {
                         // pausing
                         match this
                             .codec
-                            .decode_eof(&mut state.buffer[state.total_read..state.index])
+                            .decode_eof(&mut state.buffer[state.total_consumed..state.index])
                         {
                             // implicit pausing -> pausing or pausing -> paused
                             Ok(Some(Frame { size, item })) => {
-                                state.total_read += size;
+                                state.total_consumed += size;
 
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!(
-                                    "Frame decoded. Took {size} bytes. Total read: {}",
-                                    state.total_read
-                                );
+                                tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
 
-                                if state.total_read > state.index {
+                                if state.total_consumed > state.index {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
+                                        tracing::trace!("Setting error");
+                                    }
+
                                     state.has_errored = true;
 
                                     return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                }
+
+                                // Avboid framing an empty buffer
+                                if state.total_consumed == state.index {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::debug!("Resetting empty buffer");
+                                        tracing::trace!("Setting unframable");
+                                    }
+
+                                    state.total_consumed = 0;
+                                    state.index = 0;
+
+                                    state.is_framable = false;
                                 }
 
                                 return Poll::Ready(Some(Ok(item)));
                             }
                             Ok(None) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("No frame decoded. Setting unframable");
+                                {
+                                    tracing::debug!("No frame decoded");
+                                    tracing::trace!("Setting unframable");
+                                }
 
-                                if state.total_read > 0 {
+                                if state.total_consumed > 0 {
+                                    state
+                                        .buffer
+                                        .copy_within(state.total_consumed..state.index, 0);
+                                    state.index -= state.total_consumed;
+                                    state.total_consumed = 0;
+
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!("Shifting buffer");
-
-                                    state.buffer.copy_within(state.total_read..state.index, 0);
-                                    state.index -= state.total_read;
-                                    state.total_read = 0;
-
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!(
-                                        "Buffer: {:?}",
-                                        Formatter(&state.buffer[state.total_read..state.index])
-                                    );
+                                    tracing::debug!("Buffer shifted");
                                 }
 
                                 // prepare pausing -> paused
@@ -245,7 +259,10 @@ const _: () = {
                             }
                             Err(err) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Failed to decode. Setting error");
+                                {
+                                    tracing::warn!("Failed to decode frame");
+                                    tracing::trace!("Setting error");
+                                }
 
                                 state.has_errored = true;
 
@@ -260,43 +277,59 @@ const _: () = {
 
                     match this
                         .codec
-                        .decode(&mut state.buffer[state.total_read..state.index])
+                        .decode(&mut state.buffer[state.total_consumed..state.index])
                     {
                         Ok(None) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("No frame decoded. Setting unframable");
+                            {
+                                tracing::debug!("No frame decoded");
+                                tracing::trace!("Setting unframable");
+                            }
 
-                            if state.total_read > 0 {
+                            if state.total_consumed > 0 {
+                                state
+                                    .buffer
+                                    .copy_within(state.total_consumed..state.index, 0);
+                                state.index -= state.total_consumed;
+                                state.total_consumed = 0;
+
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Shifting buffer");
-
-                                state.buffer.copy_within(state.total_read..state.index, 0);
-                                state.index -= state.total_read;
-                                state.total_read = 0;
-
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!(
-                                    "Buffer: {:?}",
-                                    &state.buffer[state.total_read..state.index]
-                                );
+                                tracing::debug!("Buffer shifted")
                             }
 
                             // framing -> reading
                             state.is_framable = false;
                         }
                         Ok(Some(Frame { size, item })) => {
-                            state.total_read += size;
+                            state.total_consumed += size;
 
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!(
-                                "Frame decoded. Took {size} bytes. Total read: {}",
-                                state.total_read
-                            );
+                            tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
 
-                            if state.total_read > state.index {
+                            if state.total_consumed > state.index {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                {
+                                    tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
+                                    tracing::trace!("Setting error");
+                                }
+
                                 state.has_errored = true;
 
                                 return Poll::Ready(Some(Err(Error::BadDecoder)));
+                            }
+
+                            // Avoid framing an empty buffer
+                            if state.total_consumed == state.index {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                {
+                                    tracing::debug!("Resetting empty buffer");
+                                    tracing::trace!("Setting unframable");
+                                }
+
+                                state.total_consumed = 0;
+                                state.index = 0;
+
+                                state.is_framable = false;
                             }
 
                             // implicit framing -> framing
@@ -304,7 +337,10 @@ const _: () = {
                         }
                         Err(err) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("Failed to decode. Setting error");
+                            {
+                                tracing::warn!("Failed to decode frame");
+                                tracing::trace!("Setting error");
+                            }
 
                             state.has_errored = true;
 
@@ -315,7 +351,10 @@ const _: () = {
 
                 if state.index >= state.buffer.len() {
                     #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::trace!("Buffer too small. Setting error");
+                    {
+                        tracing::warn!("Buffer too small");
+                        tracing::trace!("Setting error");
+                    }
 
                     state.has_errored = true;
 
@@ -335,7 +374,10 @@ const _: () = {
                     // Pending -> implicit reading -> reading or implicit paused -> paused
                     Err(err) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::trace!("Failed to read. Setting error");
+                        {
+                            tracing::warn!("Failed to read");
+                            tracing::trace!("Setting error");
+                        }
 
                         state.has_errored = true;
 
@@ -343,11 +385,11 @@ const _: () = {
                     }
                     Ok(0) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::trace!("Got EOF");
+                        tracing::debug!("Got EOF");
 
                         if state.eof {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("Already at EOF");
+                            tracing::debug!("Already at EOF");
 
                             // We're already at an EOF, and since we've reached this path
                             // we're also not readable. This implies that we've already finished
@@ -366,10 +408,7 @@ const _: () = {
                         state.index += n;
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        {
-                            tracing::trace!("Read {n} bytes");
-                            tracing::trace!("Unsetting EOF");
-                        }
+                        tracing::debug!(bytes=%n, "Bytes read");
 
                         // prepare paused -> framing or noop reading -> framing
                         state.eof = false;
