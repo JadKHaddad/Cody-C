@@ -214,22 +214,31 @@ mod test {
     use super::*;
     use crate::{decode::framed_read::FramedRead, test::init_tracing};
 
+    macro_rules! collect_items {
+        ($framed_read:expr) => {{
+            let items: Vec<_> = $framed_read
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            items
+        }};
+    }
+
     async fn one_from_slice<const I: usize, const O: usize>() {
         // Test with `LineBytesCodec`
+
         let read: &[u8] = b"1\r\n";
 
         let result = std::vec![heapless::Vec::<_, O>::from_slice(b"1").unwrap(),];
 
         let codec = LineBytesCodec::<O>::new();
         let buf = &mut [0_u8; I];
-
         let framed_read = FramedRead::new(read, codec, buf);
-        let items: Vec<_> = framed_read
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+
+        let items = collect_items!(framed_read);
 
         assert_eq!(items, result);
 
@@ -240,14 +249,9 @@ mod test {
 
         let codec = LinesCodec::<O>::new();
         let buf = &mut [0_u8; I];
-
         let framed_read = FramedRead::new(read, codec, buf);
-        let items: Vec<_> = framed_read
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+
+        let items = collect_items!(framed_read);
 
         assert_eq!(items, result);
     }
@@ -265,14 +269,9 @@ mod test {
 
         let codec = LineBytesCodec::<O>::new();
         let buf = &mut [0_u8; I];
-
         let framed_read = FramedRead::new(read, codec, buf);
-        let items: Vec<_> = framed_read
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+
+        let items = collect_items!(framed_read);
 
         assert_eq!(items, result);
 
@@ -288,14 +287,9 @@ mod test {
 
         let codec = LinesCodec::<O>::new();
         let buf = &mut [0_u8; I];
-
         let framed_read = FramedRead::new(read, codec, buf);
-        let items: Vec<_> = framed_read
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+
+        let items = collect_items!(framed_read);
 
         assert_eq!(items, result);
     }
