@@ -19,7 +19,8 @@ default = [
     # "char-fmt",
     # "tracing",
 ]
-std = [] # Implements std::error::Error for error types
+std = [
+] # Implements std::error::Error for error types and enables std::io::Read compatibility
 codec = ["dep:heapless"] # Enables ready-to-use codec implementations
 iter = [] # Implements core::iter::Iterator # TODO
 futures = ["dep:futures"] # Implements futures::Stream and futures::Sink
