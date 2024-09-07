@@ -10,9 +10,9 @@ readme = "README.md"
 default = [
     "codec",
     "futures",
-    "futures-io",
     "embedded-io-async",
     # dev for now, TODO remove
+    # "futures-io",
     # "tokio",
     # "logging",
     # "char-fmt",
