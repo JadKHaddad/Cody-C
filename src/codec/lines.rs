@@ -12,19 +12,19 @@ pub struct LineBytesCodec<const N: usize> {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum LineBytesCodecError {
+pub enum LineBytesDecoderError {
     /// The decoded sequesnce of bytes is too large to fit into the return buffer.
     OutputBufferTooSmall,
     DecoderError(DecoderError),
 }
 
-impl From<DecoderError> for LineBytesCodecError {
+impl From<DecoderError> for LineBytesDecoderError {
     fn from(err: DecoderError) -> Self {
         Self::DecoderError(err)
     }
 }
 
-impl core::fmt::Display for LineBytesCodecError {
+impl core::fmt::Display for LineBytesDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
@@ -34,7 +34,7 @@ impl core::fmt::Display for LineBytesCodecError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for LineBytesCodecError {}
+impl std::error::Error for LineBytesDecoderError {}
 
 impl<const N: usize> LineBytesCodec<N> {
     /// Creates a new [`LineBytesCodec`].
@@ -63,53 +63,55 @@ pub struct LinesCodec<const N: usize> {
 }
 
 #[derive(Debug)]
-pub enum LinesCodecError {
+pub enum LinesDecoderError {
     Utf8Error(core::str::Utf8Error),
-    LineBytesCodecError(LineBytesCodecError),
+    LineBytesDecoderError(LineBytesDecoderError),
     DecoderError(DecoderError),
 }
 
 #[cfg(feature = "defmt")]
-impl defmt::Format for LinesCodecError {
+impl defmt::Format for LinesDecoderError {
     fn format(&self, f: defmt::Formatter) {
         match self {
             Self::Utf8Error(_) => defmt::write!(f, "UTF-8 error"),
-            Self::LineBytesCodecError(err) => defmt::write!(f, "Line bytes codec error: {}", err),
+            Self::LineBytesDecoderError(err) => {
+                defmt::write!(f, "Line bytes decoder error: {}", err)
+            }
             Self::DecoderError(err) => defmt::write!(f, "Decoder error: {}", err),
         }
     }
 }
 
-impl From<core::str::Utf8Error> for LinesCodecError {
+impl From<core::str::Utf8Error> for LinesDecoderError {
     fn from(err: core::str::Utf8Error) -> Self {
         Self::Utf8Error(err)
     }
 }
 
-impl From<LineBytesCodecError> for LinesCodecError {
-    fn from(err: LineBytesCodecError) -> Self {
-        Self::LineBytesCodecError(err)
+impl From<LineBytesDecoderError> for LinesDecoderError {
+    fn from(err: LineBytesDecoderError) -> Self {
+        Self::LineBytesDecoderError(err)
     }
 }
 
-impl From<DecoderError> for LinesCodecError {
+impl From<DecoderError> for LinesDecoderError {
     fn from(err: DecoderError) -> Self {
         Self::DecoderError(err)
     }
 }
 
-impl core::fmt::Display for LinesCodecError {
+impl core::fmt::Display for LinesDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Utf8Error(err) => write!(f, "UTF-8 error: {}", err),
-            Self::LineBytesCodecError(err) => write!(f, "Line bytes codec error: {}", err),
+            Self::LineBytesDecoderError(err) => write!(f, "Line bytes decoder error: {}", err),
             Self::DecoderError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for LinesCodecError {}
+impl std::error::Error for LinesDecoderError {}
 
 impl<const N: usize> LinesCodec<N> {
     /// Creates a new [`LinesCodec`].
@@ -135,14 +137,14 @@ impl<const N: usize> Default for LinesCodec<N> {
 
 impl<const N: usize> Decoder for LinesCodec<N> {
     type Item = heapless::String<N>;
-    type Error = LinesCodecError;
+    type Error = LinesDecoderError;
 
     fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
         match self.inner.decode(buf)? {
             Some(frame) => {
                 let size = frame.size();
                 let item = heapless::String::from_utf8(frame.into_item())
-                    .map_err(LinesCodecError::Utf8Error)?;
+                    .map_err(LinesDecoderError::Utf8Error)?;
 
                 Ok(Some(Frame::new(size, item)))
             }
@@ -160,7 +162,7 @@ const _: () = {
 
     impl<const N: usize> Decoder for LineBytesCodec<N> {
         type Item = heapless::Vec<u8, N>;
-        type Error = LineBytesCodecError;
+        type Error = LineBytesDecoderError;
 
         fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -194,7 +196,7 @@ const _: () = {
                     }
 
                     let item = heapless::Vec::from_slice(line_bytes)
-                        .map_err(|_| LineBytesCodecError::OutputBufferTooSmall)?;
+                        .map_err(|_| LineBytesDecoderError::OutputBufferTooSmall)?;
 
                     let frame = Frame::new(self.seen + 1, item);
 

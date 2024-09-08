@@ -17,19 +17,19 @@ pub struct NeedleCodec<'a, const N: usize> {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum NeedleCodecError {
+pub enum NeedleDecoderError {
     /// The decoded sequesnce of bytes is too large to fit into the return buffer.
     OutputBufferTooSmall,
     DecoderError(DecoderError),
 }
 
-impl From<DecoderError> for NeedleCodecError {
+impl From<DecoderError> for NeedleDecoderError {
     fn from(err: DecoderError) -> Self {
         Self::DecoderError(err)
     }
 }
 
-impl core::fmt::Display for NeedleCodecError {
+impl core::fmt::Display for NeedleDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
@@ -39,7 +39,7 @@ impl core::fmt::Display for NeedleCodecError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for NeedleCodecError {}
+impl std::error::Error for NeedleDecoderError {}
 
 impl<'a, const N: usize> NeedleCodec<'a, N> {
     /// Creates a new [`NeedleCodec`] with the given needle.
@@ -70,7 +70,7 @@ const _: () = {
 
     impl<'a, const N: usize> Decoder for NeedleCodec<'a, N> {
         type Item = heapless::Vec<u8, N>;
-        type Error = NeedleCodecError;
+        type Error = NeedleDecoderError;
 
         fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -94,7 +94,7 @@ const _: () = {
                     }
 
                     let item = heapless::Vec::from_slice(&buf[..self.seen])
-                        .map_err(|_| NeedleCodecError::OutputBufferTooSmall)?;
+                        .map_err(|_| NeedleDecoderError::OutputBufferTooSmall)?;
 
                     let frame = Frame::new(self.seen + self.needle.len(), item);
 

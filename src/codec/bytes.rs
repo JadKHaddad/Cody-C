@@ -10,17 +10,17 @@ pub struct BytesCodec<const N: usize>;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum BytesCodecError {
+pub enum BytesDecoderError {
     DecoderError(DecoderError),
 }
 
-impl From<DecoderError> for BytesCodecError {
+impl From<DecoderError> for BytesDecoderError {
     fn from(err: DecoderError) -> Self {
         Self::DecoderError(err)
     }
 }
 
-impl core::fmt::Display for BytesCodecError {
+impl core::fmt::Display for BytesDecoderError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DecoderError(err) => write!(f, "Decoder error: {}", err),
@@ -29,7 +29,7 @@ impl core::fmt::Display for BytesCodecError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for BytesCodecError {}
+impl std::error::Error for BytesDecoderError {}
 
 const _: () = {
     #[cfg(all(
@@ -40,7 +40,7 @@ const _: () = {
 
     impl<const N: usize> Decoder for BytesCodec<N> {
         type Item = heapless::Vec<u8, N>;
-        type Error = BytesCodecError;
+        type Error = BytesDecoderError;
 
         fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
