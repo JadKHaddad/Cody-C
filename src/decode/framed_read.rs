@@ -356,8 +356,6 @@ const _: () = {
 
                 // reading or paused
                 // If we can't build a frame yet, try to read more data and try again.
-                // Make sure we've got room for at least one byte to read to ensure
-                // that we don't get a spurious 0 that looks like EOF.
 
                 let fut = pin!(this.inner.read(&mut state.buffer[state.index..]));
                 match ready!(fut.poll(cx)) {
