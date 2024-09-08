@@ -63,12 +63,21 @@ pub struct LinesCodec<const N: usize> {
 }
 
 #[derive(Debug)]
-// TODO: impl defmt::Format manually because core::str::Utf8Error does not implement defmt::Format.
-// #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LinesCodecError {
     Utf8Error(core::str::Utf8Error),
     LineBytesCodecError(LineBytesCodecError),
     DecoderError(DecoderError),
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for LinesCodecError {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Self::Utf8Error(_) => defmt::write!(f, "UTF-8 error"),
+            Self::LineBytesCodecError(err) => defmt::write!(f, "Line bytes codec error: {}", err),
+            Self::DecoderError(err) => defmt::write!(f, "Decoder error: {}", err),
+        }
+    }
 }
 
 impl From<core::str::Utf8Error> for LinesCodecError {
