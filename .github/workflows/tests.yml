@@ -55,6 +55,9 @@ jobs:
 
       - name: Clippy -- codec
         run: cargo clippy --features=codec -- -D warnings
+
+      - name: Clippy -- iter
+        run: cargo clippy --features=iter -- -D warnings
       
       - name: Clippy -- futures
         run: cargo clippy --features=futures -- -D warnings
@@ -64,6 +67,9 @@ jobs:
 
       - name: Clippy -- embedded-io-async
         run: cargo clippy --features=embedded-io-async -- -D warnings
+
+      - name: Clippy -- embedded-io
+        run: cargo clippy --features=embedded-io -- -D warnings
 
       - name: Clippy -- tokio
         run: cargo clippy --features=tokio -- -D warnings
