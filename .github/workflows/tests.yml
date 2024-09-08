@@ -63,28 +63,10 @@ jobs:
       - name: Clippy -- iter
         run: cargo clippy --features=iter -- -D warnings
       
-      - name: Clippy -- iter decoder-checks
-        run: cargo clippy --features="iter,decoder-checks" -- -D warnings
-
-      - name: Clippy -- iter decode-enmpty-buffer
-        run: cargo clippy --features="iter,decode-enmpty-buffer" -- -D warnings
-
-      - name: Clippy -- iter decoder-checks decode-enmpty-buffer
-        run: cargo clippy --features="iter,decoder-checks,decode-enmpty-buffer" -- -D warnings
-
       # Futures
 
       - name: Clippy -- futures
         run: cargo clippy --features=futures -- -D warnings
-
-      - name: Clippy -- futures decoder-checks
-        run: cargo clippy --features="futures,decoder-checks" -- -D warnings
-
-      - name: Clippy -- futures decode-enmpty-buffer
-        run: cargo clippy --features="futures,decode-enmpty-buffer" -- -D warnings
-
-      - name: Clippy -- futures decoder-checks decode-enmpty-buffer
-        run: cargo clippy --features="futures,decoder-checks,decode-enmpty-buffer" -- -D warnings
 
       # Compatibility
 
@@ -130,5 +112,3 @@ jobs:
 
       - name: Test
         run: cargo test --features "futures,codec,tokio"
-
-# Some combinations are not tested because it is not possible to test them all
