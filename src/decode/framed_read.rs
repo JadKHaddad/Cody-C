@@ -229,6 +229,19 @@ const _: () = {
                                     return Poll::Ready(Some(Err(Error::BadDecoder)));
                                 }
 
+                                #[cfg(debug_assertions)]
+                                if size == 0 {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
+                                        tracing::trace!("Setting error");
+                                    }
+
+                                    state.has_errored = true;
+
+                                    return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                }
+
                                 return Poll::Ready(Some(Ok(item)));
                             }
                             Ok(None) => {
@@ -293,6 +306,19 @@ const _: () = {
                             tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
 
                             if state.total_consumed > state.index {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                {
+                                    tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
+                                    tracing::trace!("Setting error");
+                                }
+
+                                state.has_errored = true;
+
+                                return Poll::Ready(Some(Err(Error::BadDecoder)));
+                            }
+
+                            #[cfg(debug_assertions)]
+                            if size == 0 {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
                                     tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");

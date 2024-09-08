@@ -4,7 +4,8 @@ pub struct Frame<T> {
     /// Number of bytes consumed from the buffer
     ///
     /// # Note
-    /// Number of bytes needed to create the [`Frame::item`] may be less than the number of bytes consumed from the `buffer` but never more.
+    /// - Number of bytes needed to create the [`Frame::item`] may be less than the number of bytes consumed from the `buffer` but never more.
+    /// - Must be greater than `0`.
     pub(super) size: usize,
     /// The decoded item
     pub(super) item: T,
