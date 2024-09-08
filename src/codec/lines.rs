@@ -211,7 +211,7 @@ const _: () = {
     }
 };
 
-#[cfg(all(test, feature = "futures"))]
+#[cfg(all(test, feature = "futures", feature = "tokio"))]
 mod test {
     extern crate std;
 
@@ -219,9 +219,10 @@ mod test {
     use std::vec::Vec;
 
     use futures::StreamExt;
+    use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing};
+    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
 
     macro_rules! collect_items {
         ($framed_read:expr) => {{
@@ -303,6 +304,78 @@ mod test {
         assert_eq!(items, result);
     }
 
+    async fn from_slow_reader<const I: usize, const O: usize>() {
+        let chunks = std::vec![
+            Vec::from(b"jh asjd\r\n"),
+            Vec::from(b"k hb\njsjuwjal kadj\njsadhjiu\r\nw"),
+            Vec::from(b"\r\njal kadjjsadhjiuwqens \n"),
+            Vec::from(b"nd "),
+            Vec::from(b"yxxcjajsdi\naskdn as"),
+            Vec::from(b"jdasd\r\niouqw es"),
+            Vec::from(b"sd\n"),
+        ];
+
+        // Test with `LineBytesCodec`
+
+        let chunks_clone = chunks.clone();
+
+        let result_bytes = std::vec![
+            heapless::Vec::<_, O>::from_slice(b"jh asjd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"k hb").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsjuwjal kadj").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsadhjiu").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"w").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jal kadjjsadhjiuwqens ").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"nd yxxcjajsdi").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"askdn asjdasd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"iouqw essd").unwrap(),
+        ];
+
+        let (read, mut write) = tokio::io::duplex(1024);
+
+        tokio::spawn(async move {
+            for chunk in chunks_clone {
+                write.write_all(&chunk).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+        });
+
+        let read = AsyncReadCompat::new(read);
+        let codec = LineBytesCodec::<O>::new();
+        let buf = &mut [0_u8; I];
+        let framed_read = FramedRead::new(read, codec, buf);
+
+        let items = collect_items!(framed_read);
+
+        assert_eq!(items, result_bytes);
+
+        // Test with `LinesCodec`
+
+        let result_strings = result_bytes
+            .clone()
+            .into_iter()
+            .map(|b| heapless::String::from_utf8(b).unwrap())
+            .collect::<Vec<_>>();
+
+        let (read, mut write) = tokio::io::duplex(1024);
+
+        tokio::spawn(async move {
+            for chunk in chunks {
+                write.write_all(&chunk).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+        });
+
+        let read = AsyncReadCompat::new(read);
+        let codec = LinesCodec::<O>::new();
+        let buf = &mut [0_u8; I];
+        let framed_read = FramedRead::new(read, codec, buf);
+
+        let items = collect_items!(framed_read);
+
+        assert_eq!(items, result_strings);
+    }
+
     #[tokio::test]
     async fn one_item_one_stroke() {
         init_tracing();
@@ -323,5 +396,19 @@ mod test {
 
         // Input buffer will refill 4 times.
         four_from_slice::<3, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_small_buffer() {
+        init_tracing();
+
+        from_slow_reader::<32, 24>().await;
+    }
+
+    #[tokio::test]
+    async fn from_slow_reader_large_buffer() {
+        init_tracing();
+
+        from_slow_reader::<1024, 24>().await;
     }
 }
