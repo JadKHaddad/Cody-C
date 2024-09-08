@@ -72,28 +72,28 @@ const _: () = {
         type Item = heapless::Vec<u8, N>;
         type Error = NeedleDecodeError;
 
-        fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
-                let buf = Formatter(buf);
-                tracing::debug!(needle=?self.needle, seen=%self.seen, buf=?buf, "Decoding");
+                let src = Formatter(src);
+                tracing::debug!(needle=?self.needle, seen=%self.seen, ?src, "Decoding");
             }
 
-            while self.seen < buf.len() {
-                if buf[self.seen..].starts_with(self.needle) {
+            while self.seen < src.len() {
+                if src[self.seen..].starts_with(self.needle) {
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
                         {
-                            let buf = Formatter(&buf[..self.seen + self.needle.len()]);
-                            tracing::debug!(sequence=?buf, "Found");
+                            let src = Formatter(&src[..self.seen + self.needle.len()]);
+                            tracing::debug!(sequence=?src, "Found");
                         }
 
-                        let buf = Formatter(&buf[..self.seen]);
+                        let src = Formatter(&src[..self.seen]);
                         let consuming = self.seen + self.needle.len();
-                        tracing::debug!(frame=?buf, %consuming, "Framing");
+                        tracing::debug!(frame=?src, %consuming, "Framing");
                     }
 
-                    let item = heapless::Vec::from_slice(&buf[..self.seen])
+                    let item = heapless::Vec::from_slice(&src[..self.seen])
                         .map_err(|_| NeedleDecodeError::OutputBufferTooSmall)?;
 
                     let frame = Frame::new(self.seen + self.needle.len(), item);

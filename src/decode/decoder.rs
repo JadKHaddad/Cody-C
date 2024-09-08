@@ -22,13 +22,13 @@ pub trait Decoder {
     type Item;
     type Error: core::convert::From<DecodeError>;
 
-    fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error>;
+    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error>;
 
-    fn decode_eof(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
-        match self.decode(buf) {
+    fn decode_eof(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        match self.decode(src) {
             Ok(Some(frame)) => Ok(Some(frame)),
             Ok(None) => {
-                if buf.is_empty() {
+                if src.is_empty() {
                     return Ok(None);
                 }
 

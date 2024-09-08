@@ -139,8 +139,8 @@ impl<const N: usize> Decoder for LinesCodec<N> {
     type Item = heapless::String<N>;
     type Error = LinesDecodeError;
 
-    fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
-        match self.inner.decode(buf)? {
+    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        match self.inner.decode(src)? {
             Some(frame) => {
                 let size = frame.size();
                 let item = heapless::String::from_utf8(frame.into_item())
@@ -164,24 +164,24 @@ const _: () = {
         type Item = heapless::Vec<u8, N>;
         type Error = LineBytesDecodeError;
 
-        fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
-                let buf = Formatter(buf);
-                tracing::debug!(seen=%self.seen, buf=?buf, "Decoding");
+                let src = Formatter(src);
+                tracing::debug!(seen=%self.seen, ?src, "Decoding");
             }
 
-            while self.seen < buf.len() {
-                if buf[self.seen] == b'\n' {
-                    let line_bytes_with_n = &buf[..self.seen + 1];
+            while self.seen < src.len() {
+                if src[self.seen] == b'\n' {
+                    let line_bytes_with_n = &src[..self.seen + 1];
 
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
-                        let buf = Formatter(line_bytes_with_n);
-                        tracing::debug!(line=?buf, "Found");
+                        let src = Formatter(line_bytes_with_n);
+                        tracing::debug!(line=?src, "Found");
                     }
 
-                    let line_bytes_without_n = &buf[..self.seen];
+                    let line_bytes_without_n = &src[..self.seen];
 
                     let line_bytes = match line_bytes_without_n.last() {
                         Some(b'\r') => &line_bytes_without_n[..self.seen - 1],
@@ -190,9 +190,9 @@ const _: () = {
 
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
-                        let buf = Formatter(line_bytes);
+                        let src = Formatter(line_bytes);
                         let consuming = self.seen + 1;
-                        tracing::debug!(frame=?buf, %consuming, "Framing");
+                        tracing::debug!(frame=?src, %consuming, "Framing");
                     }
 
                     let item = heapless::Vec::from_slice(line_bytes)

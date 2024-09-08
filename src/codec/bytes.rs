@@ -42,14 +42,14 @@ const _: () = {
         type Item = heapless::Vec<u8, N>;
         type Error = BytesDecodeError;
 
-        fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
-                let buf = Formatter(buf);
-                tracing::debug!(buf=?buf, "Decoding");
+                let src = Formatter(src);
+                tracing::debug!(?src, "Decoding");
             }
 
-            let size = match buf.len() {
+            let size = match src.len() {
                 0 => return Ok(None),
                 n if n > N => N,
                 n => n,
@@ -57,11 +57,11 @@ const _: () = {
 
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
-                let buf = Formatter(&buf[..size]);
-                tracing::debug!(frame=?buf, consuming=%size, "Framing");
+                let src = Formatter(&src[..size]);
+                tracing::debug!(frame=?src, consuming=%size, "Framing");
             }
 
-            let item = heapless::Vec::from_slice(&buf[..size]).expect("unreachable");
+            let item = heapless::Vec::from_slice(&src[..size]).expect("unreachable");
             let frame = Frame::new(size, item);
 
             Ok(Some(frame))
