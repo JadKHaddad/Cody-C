@@ -3,6 +3,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod decode;
+pub mod encode;
 
 #[cfg(feature = "codec")]
 #[cfg_attr(docsrs, doc(cfg(feature = "codec")))]

@@ -224,7 +224,7 @@ mod test {
     use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
+    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::Compat};
 
     macro_rules! collect_items {
         ($framed_read:expr) => {{
@@ -342,7 +342,7 @@ mod test {
             }
         });
 
-        let read = AsyncReadCompat::new(read);
+        let read = Compat::new(read);
         let codec = LineBytesCodec::<O>::new();
         let buf = &mut [0_u8; I];
         let framed_read = FramedRead::new(read, codec, buf);
@@ -368,7 +368,7 @@ mod test {
             }
         });
 
-        let read = AsyncReadCompat::new(read);
+        let read = Compat::new(read);
         let codec = LinesCodec::<O>::new();
         let buf = &mut [0_u8; I];
         let framed_read = FramedRead::new(read, codec, buf);

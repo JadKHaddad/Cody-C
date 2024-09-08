@@ -79,7 +79,7 @@ mod test {
     use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::AsyncReadCompat};
+    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::Compat};
 
     async fn from_slice<const I: usize, const O: usize>() {
         let read: &[u8] =
@@ -121,7 +121,7 @@ mod test {
             }
         });
 
-        let read = AsyncReadCompat::new(read);
+        let read = Compat::new(read);
 
         let codec = BytesCodec::<O>;
         let buf = &mut [0_u8; I];
