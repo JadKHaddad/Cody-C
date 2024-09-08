@@ -58,16 +58,6 @@ jobs:
       - name: Clippy -- codec
         run: cargo clippy --features=codec -- -D warnings
       
-      # Iter
-      
-      - name: Clippy -- iter
-        run: cargo clippy --features=iter -- -D warnings
-      
-      # Futures
-
-      - name: Clippy -- futures
-        run: cargo clippy --features=futures -- -D warnings
-
       # Compatibility
 
       - name: Clippy -- std
@@ -111,4 +101,4 @@ jobs:
         run: cargo clippy --features="logging,tracing" -- -D warnings
 
       - name: Test
-        run: cargo test --features "futures,codec,tokio"
+        run: cargo test --features "codec,tokio"

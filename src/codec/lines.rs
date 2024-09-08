@@ -213,7 +213,7 @@ const _: () = {
     }
 };
 
-#[cfg(all(test, feature = "futures", feature = "tokio"))]
+#[cfg(all(test, feature = "tokio"))]
 mod test {
     extern crate std;
 

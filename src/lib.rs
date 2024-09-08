@@ -35,5 +35,5 @@ pub mod tokio;
 pub mod logging;
 
 // tokio needed for `AsyncReadCompat` for the duplex
-#[cfg(all(test, any(feature = "futures", feature = "codec"), feature = "tokio"))]
+#[cfg(all(test, feature = "codec", feature = "tokio"))]
 mod test;

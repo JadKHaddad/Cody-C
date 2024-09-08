@@ -10,8 +10,6 @@ readme = "README.md"
 default = [
     "decoder-checks",
     "codec",
-    "iter",
-    "futures",
     "embedded-io-async",
     # dev for now, TODO remove
     "futures-io",
@@ -27,8 +25,6 @@ decoder-checks = [
 decode-enmpty-buffer = [
 ] # If enabled, the framer will attempt to decode an empty buffer. May be useful depending on the decoder implementation
 codec = ["dep:heapless"] # Enables ready-to-use codec implementations
-iter = [] # Implements core::iter::Iterator # TODO
-futures = ["dep:futures"] # Implements futures::Stream and futures::Sink
 futures-io = [
     "futures/std",
 ] # Enables futures::io::AsyncRead and futures::io::AsyncWrite compatibility
@@ -57,7 +53,7 @@ tracing = [
 [dependencies]
 pin-project-lite = "0.2.14"
 heapless = { version = "0.8.0", optional = true }
-futures = { version = "0.3.3", default-features = false, optional = true }
+futures = { version = "0.3.3", default-features = false }
 embedded-io-async = { version = "0.6.1", optional = true }
 embedded-io = { version = "0.6.1", optional = true }
 tokio = { version = "1.37.0", optional = true, default-features = false, features = [
@@ -86,8 +82,7 @@ harness = false
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-# cargo test --features "futures, codec, tokio" # will test stream, sink and codec. 
+# cargo test --features "codec, tokio" # will test stream, sink and codec. 
 # tokio will bring `AsyncReadCompat` into scope for the duplex
-# futures will bring stream and sink into scope
 # codec will bring codec into scope
 # DO NOT RUN: cargo test --all-features (defmt will not compile)

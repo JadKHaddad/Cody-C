@@ -131,7 +131,6 @@ impl<'a, D, R> FramedRead<'a, D, R> {
     }
 }
 
-#[cfg(feature = "futures")]
 const _: () = {
     use core::{
         borrow::BorrowMut,
