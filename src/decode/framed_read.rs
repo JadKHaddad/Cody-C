@@ -195,6 +195,7 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Framing on EOF");
 
+                        #[cfg(not(feature = "decode-enmpty-buffer"))]
                         if state.total_consumed == state.index {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
                             {
@@ -309,6 +310,7 @@ const _: () = {
                             }
 
                             // Avoid framing an empty buffer
+                            #[cfg(not(feature = "decode-enmpty-buffer"))]
                             if state.total_consumed == state.index {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {

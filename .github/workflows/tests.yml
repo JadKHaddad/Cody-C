@@ -56,6 +56,9 @@ jobs:
       - name: Clippy -- decoder-checks
         run: cargo clippy --features=decoder-checks -- -D warnings
 
+      - name: Clippy -- decode-enmpty-buffer
+        run: cargo clippy --features=decode-enmpty-buffer -- -D warnings
+
       - name: Clippy -- codec
         run: cargo clippy --features=codec -- -D warnings
 
