@@ -8,6 +8,7 @@ pub enum Error<I, D> {
     /// An IO error occurred while reading from the underlying source.
     IO(I),
     /// Decoder consumed more bytes than available in the buffer.
+    #[cfg(feature = "decoder-checks")]
     BadDecoder,
     /// An error occurred while decoding a frame.
     Decode(D),
@@ -21,6 +22,7 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::BufferTooSmall => write!(f, "Buffer too small"),
+            #[cfg(feature = "decoder-checks")]
             Self::BadDecoder => write!(f, "Bad decoder"),
             Self::Decode(err) => write!(f, "Decode error: {}", err),
             Self::IO(err) => write!(f, "IO error: {}", err),
@@ -217,20 +219,8 @@ const _: () = {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
 
-                                if state.total_consumed > state.index {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
-                                        tracing::trace!("Setting error");
-                                    }
-
-                                    state.has_errored = true;
-
-                                    return Poll::Ready(Some(Err(Error::BadDecoder)));
-                                }
-
-                                #[cfg(debug_assertions)]
-                                if size == 0 {
+                                #[cfg(feature = "decoder-checks")]
+                                if state.total_consumed > state.index || size == 0 {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
                                         tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
@@ -305,20 +295,8 @@ const _: () = {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
                             tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
 
-                            if state.total_consumed > state.index {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
-                                    tracing::trace!("Setting error");
-                                }
-
-                                state.has_errored = true;
-
-                                return Poll::Ready(Some(Err(Error::BadDecoder)));
-                            }
-
-                            #[cfg(debug_assertions)]
-                            if size == 0 {
+                            #[cfg(feature = "decoder-checks")]
+                            if state.total_consumed > state.index || size == 0 {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
                                     tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");

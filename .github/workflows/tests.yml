@@ -53,6 +53,9 @@ jobs:
       - name: Clippy -- std
         run: cargo clippy --features=std -- -D warnings
 
+      - name: Clippy -- decoder-checks
+        run: cargo clippy --features=decoder-checks -- -D warnings
+
       - name: Clippy -- codec
         run: cargo clippy --features=codec -- -D warnings
 
