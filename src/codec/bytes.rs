@@ -1,5 +1,5 @@
 use crate::decode::{
-    decoder::{Decoder, Error as DecoderError},
+    decoder::{DecodeError, Decoder},
     frame::Frame,
 };
 
@@ -10,26 +10,26 @@ pub struct BytesCodec<const N: usize>;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum BytesDecoderError {
-    DecoderError(DecoderError),
+pub enum BytesDecodeError {
+    DecodeError(DecodeError),
 }
 
-impl From<DecoderError> for BytesDecoderError {
-    fn from(err: DecoderError) -> Self {
-        Self::DecoderError(err)
+impl From<DecodeError> for BytesDecodeError {
+    fn from(err: DecodeError) -> Self {
+        Self::DecodeError(err)
     }
 }
 
-impl core::fmt::Display for BytesDecoderError {
+impl core::fmt::Display for BytesDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::DecoderError(err) => write!(f, "Decoder error: {}", err),
+            Self::DecodeError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for BytesDecoderError {}
+impl std::error::Error for BytesDecodeError {}
 
 const _: () = {
     #[cfg(all(
@@ -40,7 +40,7 @@ const _: () = {
 
     impl<const N: usize> Decoder for BytesCodec<N> {
         type Item = heapless::Vec<u8, N>;
-        type Error = BytesDecoderError;
+        type Error = BytesDecodeError;
 
         fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]

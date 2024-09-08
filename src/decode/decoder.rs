@@ -2,12 +2,12 @@ use super::frame::Frame;
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Error {
+pub enum DecodeError {
     /// EOF was reached while decoding.
     BytesRemainingOnStream,
 }
 
-impl core::fmt::Display for Error {
+impl core::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::BytesRemainingOnStream => write!(f, "Bytes remaining on stream"),
@@ -16,11 +16,11 @@ impl core::fmt::Display for Error {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Error {}
+impl std::error::Error for DecodeError {}
 
 pub trait Decoder {
     type Item;
-    type Error: core::convert::From<Error>;
+    type Error: core::convert::From<DecodeError>;
 
     fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error>;
 
@@ -32,7 +32,7 @@ pub trait Decoder {
                     return Ok(None);
                 }
 
-                Err(Self::Error::from(Error::BytesRemainingOnStream))
+                Err(Self::Error::from(DecodeError::BytesRemainingOnStream))
             }
             Err(err) => Err(err),
         }

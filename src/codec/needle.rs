@@ -1,5 +1,5 @@
 use crate::decode::{
-    decoder::{Decoder, Error as DecoderError},
+    decoder::{DecodeError, Decoder},
     frame::Frame,
 };
 
@@ -17,29 +17,29 @@ pub struct NeedleCodec<'a, const N: usize> {
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum NeedleDecoderError {
+pub enum NeedleDecodeError {
     /// The decoded sequesnce of bytes is too large to fit into the return buffer.
     OutputBufferTooSmall,
-    DecoderError(DecoderError),
+    DecodeError(DecodeError),
 }
 
-impl From<DecoderError> for NeedleDecoderError {
-    fn from(err: DecoderError) -> Self {
-        Self::DecoderError(err)
+impl From<DecodeError> for NeedleDecodeError {
+    fn from(err: DecodeError) -> Self {
+        Self::DecodeError(err)
     }
 }
 
-impl core::fmt::Display for NeedleDecoderError {
+impl core::fmt::Display for NeedleDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
-            Self::DecoderError(err) => write!(f, "Decoder error: {}", err),
+            Self::DecodeError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for NeedleDecoderError {}
+impl std::error::Error for NeedleDecodeError {}
 
 impl<'a, const N: usize> NeedleCodec<'a, N> {
     /// Creates a new [`NeedleCodec`] with the given needle.
@@ -70,7 +70,7 @@ const _: () = {
 
     impl<'a, const N: usize> Decoder for NeedleCodec<'a, N> {
         type Item = heapless::Vec<u8, N>;
-        type Error = NeedleDecoderError;
+        type Error = NeedleDecodeError;
 
         fn decode(&mut self, buf: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -94,7 +94,7 @@ const _: () = {
                     }
 
                     let item = heapless::Vec::from_slice(&buf[..self.seen])
-                        .map_err(|_| NeedleDecoderError::OutputBufferTooSmall)?;
+                        .map_err(|_| NeedleDecodeError::OutputBufferTooSmall)?;
 
                     let frame = Frame::new(self.seen + self.needle.len(), item);
 
