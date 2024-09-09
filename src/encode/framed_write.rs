@@ -1,4 +1,4 @@
-use core::future::Future;
+use core::{borrow::Borrow, future::Future};
 
 use pin_project_lite::pin_project;
 
@@ -50,13 +50,35 @@ where
 pub struct WriteFrame<'a> {
     /// The current index in the buffer.
     index: usize,
+    /// The maximum amount of used bytes, the buffer can hold before flushing is required to report readiness.
+    ///
+    /// Defaults to `3/4` of the buffer size.
+    backpressure_boundary: usize,
     /// The underlying buffer to read into.
     buffer: &'a mut [u8],
 }
 
 impl<'a> WriteFrame<'a> {
+    fn new(buffer: &'a mut [u8]) -> Self {
+        let backpressure_boundary = buffer.len() / 4 * 3;
+
+        Self {
+            index: 0,
+            backpressure_boundary,
+            buffer,
+        }
+    }
+
     pub const fn index(&self) -> usize {
         self.index
+    }
+
+    fn set_backpressure_boundary(&mut self, boundary: usize) {
+        self.backpressure_boundary = boundary;
+    }
+
+    pub const fn backpressure_boundary(&self) -> usize {
+        self.backpressure_boundary
     }
 
     pub const fn buffer(&'a self) -> &'a [u8] {
@@ -82,7 +104,7 @@ pin_project! {
 impl<'a, E, W> FramedWrite<'a, E, W> {
     pub fn new(inner: W, encoder: E, buffer: &'a mut [u8]) -> Self {
         Self {
-            state: WriteFrame { index: 0, buffer },
+            state: WriteFrame::new(buffer),
             encoder,
             inner,
         }
@@ -90,6 +112,10 @@ impl<'a, E, W> FramedWrite<'a, E, W> {
 
     pub const fn state(&self) -> &WriteFrame<'a> {
         &self.state
+    }
+
+    pub fn set_backpressure_boundary(&mut self, boundary: usize) {
+        self.state.set_backpressure_boundary(boundary);
     }
 
     pub const fn encoder(&self) -> &E {
@@ -129,13 +155,23 @@ const _: () = {
         type Error = Error<W::Error, E::Error>;
 
         fn poll_ready(
-            self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
         ) -> Poll<Result<(), Self::Error>> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Poll ready");
+            let state = self.state.borrow();
 
-            // TODO: flush on backpressure
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            {
+                tracing::trace!("Poll ready");
+                tracing::debug!(index=%state.index, available=%state.available(), boundary=%state.backpressure_boundary);
+            }
+
+            if state.index >= state.backpressure_boundary {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                tracing::debug!("Backpressure");
+
+                return self.as_mut().poll_flush(cx);
+            }
 
             Poll::Ready(Ok(()))
         }
@@ -285,6 +321,7 @@ mod test {
 
         let item = heapless::Vec::<_, 5>::from_slice(b"hello").unwrap();
 
+        framed_write.feed(item.clone()).await.unwrap();
         framed_write.feed(item.clone()).await.unwrap();
         framed_write.feed(item.clone()).await.unwrap();
         framed_write.feed(item.clone()).await.unwrap();
