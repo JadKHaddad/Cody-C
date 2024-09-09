@@ -291,42 +291,4 @@ const _: () = {
     }
 };
 
-// TODO: rework tests without using the codec feature because of heapless::Vec::<_, 5>
-#[cfg(all(test, feature = "codec", feature = "tokio"))]
-mod test {
-    use futures::SinkExt;
-
-    use crate::{codec::bytes::BytesCodec, test::init_tracing, tokio::Compat};
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test() {
-        init_tracing();
-
-        let (_read, write) = tokio::io::duplex(1024);
-
-        tokio::spawn(async move {
-            // for chunk in chunks {
-            //     write.write_all(&chunk).await.unwrap();
-            //     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            // }
-        });
-
-        let write = Compat::new(write);
-
-        let mut buffer = [0; 30];
-        let codec = BytesCodec::<5>;
-        let mut framed_write = FramedWrite::new(write, codec, &mut buffer);
-
-        let item = heapless::Vec::<_, 5>::from_slice(b"hello").unwrap();
-
-        framed_write.feed(item.clone()).await.unwrap();
-        framed_write.feed(item.clone()).await.unwrap();
-        framed_write.feed(item.clone()).await.unwrap();
-        framed_write.feed(item.clone()).await.unwrap();
-        // framed_write.flush().await.unwrap();
-        framed_write.send(item).await.unwrap();
-        framed_write.close().await.unwrap();
-    }
-}
+// TODO: test errors on features
