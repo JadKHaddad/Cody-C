@@ -90,7 +90,7 @@ const _: () = {
 
                         let src = Formatter(&src[..self.seen]);
                         let consuming = self.seen + self.needle.len();
-                        tracing::debug!(frame=?src, %consuming, "Framing");
+                        tracing::debug!(frame=?src, %consuming, "Decoding frame");
                     }
 
                     let item = heapless::Vec::from_slice(&src[..self.seen])

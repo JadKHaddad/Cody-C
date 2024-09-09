@@ -62,6 +62,10 @@ impl<'a> WriteFrame<'a> {
     pub const fn buffer(&'a self) -> &'a [u8] {
         self.buffer
     }
+
+    pub const fn available(&self) -> usize {
+        self.buffer.len() - self.index
+    }
 }
 
 pin_project! {
@@ -146,18 +150,16 @@ const _: () = {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
                 let buf = Formatter(&state.buffer[0..state.index]);
-                let available = state.buffer.len() - state.index;
-                tracing::debug!(index=%state.index, %available, ?buf);
+                tracing::debug!(index=%state.index, available=%state.available(), ?buf);
             }
 
             match this.encoder.encode(item, &mut state.buffer[state.index..]) {
                 Ok(size) => {
                     #[cfg(feature = "encoder-checks")]
-                    if size == 0 || size > state.buffer.len() - state.index {
+                    if size == 0 || size > state.available() {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         {
-                            let available = state.buffer.len() - state.index;
-                            tracing::warn!(size=%size, index=%state.index, %available, "Bad encoder");
+                            tracing::warn!(size=%size, index=%state.index, available=%state.available(), "Bad encoder");
                         }
 
                         return Err(Error::BadEncoder);

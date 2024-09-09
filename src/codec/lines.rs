@@ -191,7 +191,7 @@ const _: () = {
                     {
                         let src = Formatter(line_bytes);
                         let consuming = self.seen + 1;
-                        tracing::debug!(frame=?src, %consuming, "Framing");
+                        tracing::debug!(frame=?src, %consuming, "Decoding frame");
                     }
 
                     let item = heapless::Vec::from_slice(line_bytes)

@@ -78,7 +78,7 @@ const _: () = {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
                 let src = Formatter(&src[..size]);
-                tracing::debug!(frame=?src, consuming=%size, "Framing");
+                tracing::debug!(frame=?src, consuming=%size, "Decoding frame");
             }
 
             let item = heapless::Vec::from_slice(&src[..size]).expect("unreachable");
@@ -102,7 +102,7 @@ const _: () = {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
                 let item = Formatter(item);
-                tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Framing");
+                tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
             }
 
             if dst.len() < size {
