@@ -59,7 +59,7 @@ pub struct WriteFrame<'a> {
 }
 
 impl<'a> WriteFrame<'a> {
-    fn new(buffer: &'a mut [u8]) -> Self {
+    pub(crate) fn new(buffer: &'a mut [u8]) -> Self {
         let backpressure_boundary = buffer.len() / 4 * 3;
 
         Self {

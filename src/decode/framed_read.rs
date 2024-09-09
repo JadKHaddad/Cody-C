@@ -58,6 +58,17 @@ pub struct ReadFrame<'a> {
 }
 
 impl<'a> ReadFrame<'a> {
+    pub(crate) fn new(buffer: &'a mut [u8]) -> Self {
+        Self {
+            index: 0,
+            eof: false,
+            is_framable: false,
+            has_errored: false,
+            total_consumed: 0,
+            buffer,
+        }
+    }
+
     pub const fn index(&self) -> usize {
         self.index
     }
@@ -97,14 +108,7 @@ pin_project! {
 impl<'a, D, R> FramedRead<'a, D, R> {
     pub fn new(inner: R, decoder: D, buffer: &'a mut [u8]) -> Self {
         Self {
-            state: ReadFrame {
-                index: 0,
-                eof: false,
-                is_framable: false,
-                has_errored: false,
-                total_consumed: 0,
-                buffer,
-            },
+            state: ReadFrame::new(buffer),
             decoder,
             inner,
         }
