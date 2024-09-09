@@ -43,13 +43,13 @@ impl std::error::Error for BytesDecodeError {}
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BytesEncodeError {
-    OutputBufferTooSmall,
+    InputBufferTooSmall,
 }
 
 impl core::fmt::Display for BytesEncodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+            Self::InputBufferTooSmall => write!(f, "Input buffer too small"),
         }
     }
 }
@@ -72,7 +72,7 @@ impl<const N: usize> BytesCodec<N> {
         }
 
         if dst.len() < size {
-            return Err(BytesEncodeError::OutputBufferTooSmall);
+            return Err(BytesEncodeError::InputBufferTooSmall);
         }
 
         dst[..size].copy_from_slice(item);

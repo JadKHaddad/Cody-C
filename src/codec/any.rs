@@ -50,13 +50,13 @@ impl std::error::Error for AnyDelimiterDecodeError {}
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnyDelimiterEncodeError {
-    OutputBufferTooSmall,
+    InputBufferTooSmall,
 }
 
 impl core::fmt::Display for AnyDelimiterEncodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+            Self::InputBufferTooSmall => write!(f, "Input buffer too small"),
         }
     }
 }
@@ -97,7 +97,7 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
         }
 
         if dst.len() < size {
-            return Err(AnyDelimiterEncodeError::OutputBufferTooSmall);
+            return Err(AnyDelimiterEncodeError::InputBufferTooSmall);
         }
 
         dst[..item.len()].copy_from_slice(item);

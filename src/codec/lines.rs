@@ -48,13 +48,13 @@ impl std::error::Error for LineBytesDecodeError {}
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LineBytesEncodeError {
-    OutputBufferTooSmall,
+    InputBufferTooSmall,
 }
 
 impl core::fmt::Display for LineBytesEncodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+            Self::InputBufferTooSmall => write!(f, "Input buffer too small"),
         }
     }
 }
@@ -148,7 +148,7 @@ impl<const N: usize> LineBytesCodec<N> {
         }
 
         if dst.len() < size {
-            return Err(LineBytesEncodeError::OutputBufferTooSmall);
+            return Err(LineBytesEncodeError::InputBufferTooSmall);
         }
 
         dst[..item.len()].copy_from_slice(item);
