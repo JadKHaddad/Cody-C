@@ -107,66 +107,68 @@ const _: () = {
 /// - Converts a [`Crate's Encoder`](crate::encode::encoder::Encoder) into a [`Tokio's Encoder`](tokio_util::codec::Encoder).
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct CodecCompat<D>(D);
+pub struct CodecCompat<C>(C);
 
-impl<D> CodecCompat<D> {
-    pub const fn new(inner: D) -> Self {
+impl<C> CodecCompat<C> {
+    pub const fn new(inner: C) -> Self {
         CodecCompat(inner)
     }
 
-    pub const fn inner(&self) -> &D {
+    pub const fn inner(&self) -> &C {
         &self.0
     }
 
-    pub fn inner_mut(&mut self) -> &mut D {
+    pub fn inner_mut(&mut self) -> &mut C {
         &mut self.0
     }
 
-    pub fn into_inner(self) -> D {
+    pub fn into_inner(self) -> C {
         self.0
     }
 }
 
-impl<D> Borrow<D> for CodecCompat<D> {
-    fn borrow(&self) -> &D {
+impl<C> Borrow<C> for CodecCompat<C> {
+    fn borrow(&self) -> &C {
         self.inner()
     }
 }
 
-impl<D> BorrowMut<D> for CodecCompat<D> {
-    fn borrow_mut(&mut self) -> &mut D {
+impl<C> BorrowMut<C> for CodecCompat<C> {
+    fn borrow_mut(&mut self) -> &mut C {
         self.inner_mut()
     }
 }
 
-impl<D> AsRef<D> for CodecCompat<D> {
-    fn as_ref(&self) -> &D {
+impl<C> AsRef<C> for CodecCompat<C> {
+    fn as_ref(&self) -> &C {
         self.inner()
     }
 }
 
-impl<D> AsMut<D> for CodecCompat<D> {
-    fn as_mut(&mut self) -> &mut D {
+impl<C> AsMut<C> for CodecCompat<C> {
+    fn as_mut(&mut self) -> &mut C {
         self.inner_mut()
     }
 }
 
-impl<D> From<D> for CodecCompat<D> {
-    fn from(inner: D) -> Self {
+impl<C> From<C> for CodecCompat<C> {
+    fn from(inner: C) -> Self {
         Self::new(inner)
     }
 }
 
 const _: () = {
-    use crate::decode::decoder::Decoder as CrateDecoder;
+    use crate::{
+        decode::decoder::Decoder as CrateDecoder, encode::encoder::Encoder as CrateEncoder,
+    };
 
-    impl<D> tokio_util::codec::Decoder for CodecCompat<D>
+    impl<C> tokio_util::codec::Decoder for CodecCompat<C>
     where
-        D: CrateDecoder,
-        <D as CrateDecoder>::Error: core::convert::From<tokio::io::Error>,
+        C: CrateDecoder,
+        <C as CrateDecoder>::Error: core::convert::From<tokio::io::Error>,
     {
-        type Item = <D as CrateDecoder>::Item;
-        type Error = <D as CrateDecoder>::Error;
+        type Item = <C as CrateDecoder>::Item;
+        type Error = <C as CrateDecoder>::Error;
 
         fn decode(
             &mut self,
@@ -184,5 +186,26 @@ const _: () = {
         }
     }
 
-    // TODO: implement Encoder
+    impl<C, Item> tokio_util::codec::Encoder<Item> for CodecCompat<C>
+    where
+        C: CrateEncoder<Item>,
+        <C as CrateEncoder<Item>>::Error: core::convert::From<tokio::io::Error>,
+    {
+        type Error = <C as CrateEncoder<Item>>::Error;
+
+        fn encode(
+            &mut self,
+            item: Item,
+            dst: &mut tokio_util::bytes::BytesMut,
+        ) -> Result<(), Self::Error> {
+            match self.as_mut().encode(item, dst.as_mut()) {
+                Ok(size) => {
+                    dst.advance(size);
+
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            }
+        }
+    }
 };
