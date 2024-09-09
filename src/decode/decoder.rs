@@ -47,3 +47,14 @@ pub trait Decoder {
 // most protocols have a fixed size header that contains the size of the frame
 // the decoder will tipically read the header and determine the size of the frame. Currently the decoder gets only a buffer for what has been read so far and has no idea about the size of the frame
 // the decoder should be able to tell the framer how many bytes it needs to read to get the full frame, to avoid multiple reads
+
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum MaybeDecoded<T> {
+    /// A frame was decoded.
+    Frame(Frame<T>),
+    /// No frame was decoded, but more bytes are needed to decode a frame.
+    ///
+    /// If `None`, the decoder has no idea how many bytes are needed to decode a frame.
+    MoreBytesNeeded(Option<usize>),
+}
