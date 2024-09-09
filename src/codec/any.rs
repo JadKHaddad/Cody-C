@@ -163,11 +163,14 @@ mod test {
 
     use std::vec::Vec;
 
-    use futures::StreamExt;
+    use futures::{SinkExt, StreamExt};
     use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::Compat};
+    use crate::{
+        decode::framed_read::FramedRead, encode::framed_write::FramedWrite, test::init_tracing,
+        tokio::Compat,
+    };
 
     async fn one_from_slice<const I: usize, const O: usize>() {
         let read: &[u8] = b"1##";
@@ -247,11 +250,14 @@ mod test {
         let buf = &mut [0_u8; I];
 
         let framed_read = FramedRead::new(read, codec, buf);
-        let byte_chunks: Vec<_> = framed_read.collect().await;
+        let items: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
 
-        let bytes: Vec<_> = byte_chunks.into_iter().flatten().collect::<Vec<_>>();
-
-        assert_eq!(bytes, result);
+        assert_eq!(items, result);
     }
 
     #[tokio::test]
@@ -288,5 +294,62 @@ mod test {
         init_tracing();
 
         from_slow_reader::<1024, 24>().await;
+    }
+
+    #[tokio::test]
+    async fn sink_stream() {
+        const O: usize = 24;
+
+        init_tracing();
+
+        let items = std::vec![
+            heapless::Vec::<_, O>::from_slice(b"jh asjd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"k hb").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsjuwjal kadj").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsadhjiu").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"w").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jal kadjjsadhjiuwqens ").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"nd yxxcjajsdi").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"askdn asjdasd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"iouqw essd").unwrap(),
+        ];
+
+        let items_clone = items.clone();
+
+        let (read, write) = tokio::io::duplex(1024);
+
+        let handle = tokio::spawn(async move {
+            let write_buf = &mut [0_u8; 1024];
+            let mut framed_write = FramedWrite::new(
+                Compat::new(write),
+                AnyDelimiterCodec::<O>::new(b"##"),
+                write_buf,
+            );
+
+            for item in items_clone {
+                framed_write.send(item).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+
+            framed_write.close().await.unwrap();
+        });
+
+        let read_buf = &mut [0_u8; 1024];
+        let framed_read = FramedRead::new(
+            Compat::new(read),
+            AnyDelimiterCodec::<O>::new(b"##"),
+            read_buf,
+        );
+
+        let collected_items: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        handle.await.unwrap();
+
+        assert_eq!(collected_items, items);
     }
 }

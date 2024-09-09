@@ -131,11 +131,14 @@ mod test {
 
     use std::vec::Vec;
 
-    use futures::StreamExt;
+    use futures::{SinkExt, StreamExt};
     use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::Compat};
+    use crate::{
+        decode::framed_read::FramedRead, encode::framed_write::FramedWrite, test::init_tracing,
+        tokio::Compat,
+    };
 
     async fn from_slice<const I: usize, const O: usize>() {
         let read: &[u8] =
@@ -248,5 +251,57 @@ mod test {
         init_tracing();
 
         from_slow_reader::<3, 5>().await;
+    }
+
+    #[tokio::test]
+    async fn sink_stream() {
+        const O: usize = 24;
+
+        init_tracing();
+
+        let chunks = std::vec![
+            heapless::Vec::<_, O>::from_slice(b"jh asjd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"k hb").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsjuwjal kadj").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsadhjiu").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"w").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jal kadjjsadhjiuwqens ").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"nd yxxcjajsdi").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"askdn asjdasd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"iouqw essd").unwrap(),
+        ];
+
+        let chunks_clone = chunks.clone();
+
+        let (read, write) = tokio::io::duplex(1024);
+
+        let handle = tokio::spawn(async move {
+            let write_buf = &mut [0_u8; 1024];
+            let mut framed_write = FramedWrite::new(Compat::new(write), BytesCodec::<O>, write_buf);
+
+            for item in chunks_clone {
+                framed_write.send(item).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+
+            framed_write.close().await.unwrap();
+        });
+
+        let read_buf = &mut [0_u8; 1024];
+        let framed_read = FramedRead::new(Compat::new(read), BytesCodec::<O>, read_buf);
+
+        let collected_bytes: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        let bytes: Vec<_> = chunks.into_iter().flatten().collect();
+
+        handle.await.unwrap();
+
+        assert_eq!(collected_bytes, bytes);
     }
 }

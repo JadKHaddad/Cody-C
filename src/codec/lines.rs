@@ -302,11 +302,14 @@ mod test {
     use core::str::FromStr;
     use std::vec::Vec;
 
-    use futures::StreamExt;
+    use futures::{SinkExt, StreamExt};
     use tokio::io::AsyncWriteExt;
 
     use super::*;
-    use crate::{decode::framed_read::FramedRead, test::init_tracing, tokio::Compat};
+    use crate::{
+        decode::framed_read::FramedRead, encode::framed_write::FramedWrite, test::init_tracing,
+        tokio::Compat,
+    };
 
     macro_rules! collect_items {
         ($framed_read:expr) => {{
@@ -494,5 +497,102 @@ mod test {
         init_tracing();
 
         from_slow_reader::<1024, 24>().await;
+    }
+
+    #[tokio::test]
+    async fn sink_stream() {
+        const O: usize = 24;
+
+        init_tracing();
+
+        // Test with `LineBytesCodec`
+
+        let items = std::vec![
+            heapless::Vec::<_, O>::from_slice(b"jh asjd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"k hb").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsjuwjal kadj").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jsadhjiu").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"w").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"jal kadjjsadhjiuwqens ").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"nd yxxcjajsdi").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"askdn asjdasd").unwrap(),
+            heapless::Vec::<_, O>::from_slice(b"iouqw essd").unwrap(),
+        ];
+
+        let items_clone = items.clone();
+
+        let (read, write) = tokio::io::duplex(1024);
+
+        let handle = tokio::spawn(async move {
+            let write_buf = &mut [0_u8; 1024];
+            let mut framed_write =
+                FramedWrite::new(Compat::new(write), LineBytesCodec::<O>::new(), write_buf);
+
+            for item in items_clone {
+                framed_write.send(item).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+
+            framed_write.close().await.unwrap();
+        });
+
+        let read_buf = &mut [0_u8; 1024];
+        let framed_read = FramedRead::new(Compat::new(read), LineBytesCodec::<O>::new(), read_buf);
+
+        let collected_items: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        handle.await.unwrap();
+
+        assert_eq!(collected_items, items);
+
+        // Test with `LinesCodec`
+
+        let items = std::vec![
+            heapless::String::<O>::from_str("jh asjd").unwrap(),
+            heapless::String::<O>::from_str("k hb").unwrap(),
+            heapless::String::<O>::from_str("jsjuwjal kadj").unwrap(),
+            heapless::String::<O>::from_str("jsadhjiu").unwrap(),
+            heapless::String::<O>::from_str("w").unwrap(),
+            heapless::String::<O>::from_str("jal kadjjsadhjiuwqens ").unwrap(),
+            heapless::String::<O>::from_str("nd yxxcjajsdi").unwrap(),
+            heapless::String::<O>::from_str("askdn asjdasd").unwrap(),
+            heapless::String::<O>::from_str("iouqw essd").unwrap(),
+        ];
+
+        let items_clone = items.clone();
+
+        let (read, write) = tokio::io::duplex(1024);
+
+        let handle = tokio::spawn(async move {
+            let write_buf = &mut [0_u8; 1024];
+            let mut framed_write =
+                FramedWrite::new(Compat::new(write), LinesCodec::<O>::new(), write_buf);
+
+            for item in items_clone {
+                framed_write.send(item).await.unwrap();
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+
+            framed_write.close().await.unwrap();
+        });
+
+        let read_buf = &mut [0_u8; 1024];
+        let framed_read = FramedRead::new(Compat::new(read), LinesCodec::<O>::new(), read_buf);
+
+        let collected_items: Vec<_> = framed_read
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        handle.await.unwrap();
+
+        assert_eq!(collected_items, items);
     }
 }
