@@ -140,10 +140,7 @@ const _: () = {
 
     use futures::{Future, Stream};
 
-    #[cfg(all(
-        feature = "logging",
-        any(feature = "log", feature = "defmt", feature = "tracing")
-    ))]
+    #[cfg(all(feature = "logging", feature = "tracing"))]
     use crate::logging::formatter::Formatter;
 
     use super::{async_read::AsyncRead, decoder::Decoder, frame::Frame};
@@ -161,11 +158,7 @@ const _: () = {
 
             loop {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    let buf = Formatter(&state.buffer[state.total_consumed..state.index]);
-                    tracing::trace!("Entering loop");
-                    tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
-                }
+                tracing::trace!("Entering loop");
 
                 // Return `None` if we have encountered an error from the underlying decoder
                 if state.has_errored {
@@ -175,6 +168,12 @@ const _: () = {
                     tracing::trace!("Error already");
 
                     return Poll::Ready(None);
+                }
+
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                {
+                    let buf = Formatter(&state.buffer[state.total_consumed..state.index]);
+                    tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
                 }
 
                 // Repeatedly call `decode` or `decode_eof` while the buffer is "readable",
@@ -413,3 +412,60 @@ const _: () = {
         }
     }
 };
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use std::vec::Vec;
+
+    use futures::StreamExt;
+
+    use crate::{
+        decode::{decoder::Decoder, frame::Frame},
+        test::init_tracing,
+    };
+
+    use super::*;
+
+    struct DecoderReturningMoreSizeThanAvailable;
+
+    impl Decoder for DecoderReturningMoreSizeThanAvailable {
+        type Item = ();
+        type Error = ();
+
+        fn decode(&mut self, _: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+            Ok(Some(Frame::new(2, ())))
+        }
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    #[cfg(not(feature = "decoder-checks"))]
+    async fn over_size_panic() {
+        init_tracing();
+
+        let read: &[u8] = b"111111111111111";
+        let codec = DecoderReturningMoreSizeThanAvailable;
+        let buf = &mut [0_u8; 4];
+
+        let framed_read = FramedRead::new(read, codec, buf);
+        framed_read.collect::<Vec<_>>().await;
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "decoder-checks")]
+    async fn over_size_bad_decoder() {
+        init_tracing();
+
+        let read: &[u8] = b"111111111111111";
+        let codec = DecoderReturningMoreSizeThanAvailable;
+        let buf = &mut [0_u8; 4];
+
+        let framed_read = FramedRead::new(read, codec, buf);
+        let items: Vec<_> = framed_read.collect().await;
+
+        let last_item = items.last().expect("No items");
+        assert!(matches!(last_item, Err(Error::BadDecoder)));
+    }
+}
