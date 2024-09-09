@@ -1,3 +1,9 @@
+#[cfg(all(
+    feature = "logging",
+    any(feature = "log", feature = "defmt", feature = "tracing")
+))]
+use crate::logging::formatter::Formatter;
+
 use crate::{
     decode::{
         decoder::{DecodeError, Decoder},
@@ -51,70 +57,73 @@ impl core::fmt::Display for BytesEncodeError {
 #[cfg(feature = "std")]
 impl std::error::Error for BytesEncodeError {}
 
-const _: () = {
-    #[cfg(all(
-        feature = "logging",
-        any(feature = "log", feature = "defmt", feature = "tracing")
-    ))]
-    use crate::logging::formatter::Formatter;
-
-    impl<const N: usize> Decoder for BytesCodec<N> {
-        type Item = heapless::Vec<u8, N>;
-        type Error = BytesDecodeError;
-
-        fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let src = Formatter(src);
-                tracing::debug!(?src, "Decoding");
-            }
-
-            let size = match src.len() {
-                0 => return Ok(None),
-                n if n > N => N,
-                n => n,
-            };
-
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let src = Formatter(&src[..size]);
-                tracing::debug!(frame=?src, consuming=%size, "Decoding frame");
-            }
-
-            let item = heapless::Vec::from_slice(&src[..size]).expect("unreachable");
-            let frame = Frame::new(size, item);
-
-            Ok(Some(frame))
-        }
+impl<const N: usize> BytesCodec<N> {
+    pub const fn new() -> Self {
+        Self
     }
 
-    impl<const N: usize> Encoder<heapless::Vec<u8, N>> for BytesCodec<N> {
-        type Error = BytesEncodeError;
+    pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, BytesEncodeError> {
+        let size = item.len();
 
-        fn encode(
-            &mut self,
-            item: heapless::Vec<u8, N>,
-            dst: &mut [u8],
-        ) -> Result<usize, Self::Error> {
-            let size = item.len();
-            let item = item.as_slice();
-
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let item = Formatter(item);
-                tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
-            }
-
-            if dst.len() < size {
-                return Err(BytesEncodeError::OutputBufferTooSmall);
-            }
-
-            dst[..size].copy_from_slice(item);
-
-            Ok(size)
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let item = Formatter(item);
+            tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
         }
+
+        if dst.len() < size {
+            return Err(BytesEncodeError::OutputBufferTooSmall);
+        }
+
+        dst[..size].copy_from_slice(item);
+
+        Ok(size)
     }
-};
+}
+
+impl<const N: usize> Decoder for BytesCodec<N> {
+    type Item = heapless::Vec<u8, N>;
+    type Error = BytesDecodeError;
+
+    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let src = Formatter(src);
+            tracing::debug!(?src, "Decoding");
+        }
+
+        let size = match src.len() {
+            0 => return Ok(None),
+            n if n > N => N,
+            n => n,
+        };
+
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let src = Formatter(&src[..size]);
+            tracing::debug!(frame=?src, consuming=%size, "Decoding frame");
+        }
+
+        let item = heapless::Vec::from_slice(&src[..size]).expect("unreachable");
+        let frame = Frame::new(size, item);
+
+        Ok(Some(frame))
+    }
+}
+
+impl<const N: usize> Encoder<heapless::Vec<u8, N>> for BytesCodec<N> {
+    type Error = BytesEncodeError;
+
+    fn encode(&mut self, item: heapless::Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        self.encode_slice(&item, dst)
+    }
+}
+
+impl<const N: usize> Default for BytesCodec<N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[cfg(all(test, feature = "tokio"))]
 mod test {

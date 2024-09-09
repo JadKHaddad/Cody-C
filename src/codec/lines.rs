@@ -1,6 +1,15 @@
-use crate::decode::{
-    decoder::{DecodeError, Decoder},
-    frame::Frame,
+#[cfg(all(
+    feature = "logging",
+    any(feature = "log", feature = "defmt", feature = "tracing")
+))]
+use crate::logging::formatter::Formatter;
+
+use crate::{
+    decode::{
+        decoder::{DecodeError, Decoder},
+        frame::Frame,
+    },
+    encode::encoder::Encoder,
 };
 
 #[derive(Debug, Clone)]
@@ -36,19 +45,22 @@ impl core::fmt::Display for LineBytesDecodeError {
 #[cfg(feature = "std")]
 impl std::error::Error for LineBytesDecodeError {}
 
-impl<const N: usize> LineBytesCodec<N> {
-    /// Creates a new [`LineBytesCodec`].
-    #[inline]
-    pub const fn new() -> Self {
-        Self { seen: 0 }
-    }
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum LineBytesEncodeError {
+    OutputBufferTooSmall,
+}
 
-    /// Returns the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub const fn seen(&self) -> usize {
-        self.seen
+impl core::fmt::Display for LineBytesEncodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+        }
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for LineBytesEncodeError {}
 
 impl<const N: usize> Default for LineBytesCodec<N> {
     fn default() -> Self {
@@ -113,6 +125,121 @@ impl core::fmt::Display for LinesDecodeError {
 #[cfg(feature = "std")]
 impl std::error::Error for LinesDecodeError {}
 
+impl<const N: usize> LineBytesCodec<N> {
+    /// Creates a new [`LineBytesCodec`].
+    #[inline]
+    pub const fn new() -> Self {
+        Self { seen: 0 }
+    }
+
+    /// Returns the number of bytes of the slice that have been seen so far.
+    #[inline]
+    pub const fn seen(&self) -> usize {
+        self.seen
+    }
+
+    pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, LineBytesEncodeError> {
+        let size = item.len() + 2;
+
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let item = Formatter(item);
+            tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
+        }
+
+        if dst.len() < size {
+            return Err(LineBytesEncodeError::OutputBufferTooSmall);
+        }
+
+        dst[..item.len()].copy_from_slice(item);
+        dst[item.len()..size].copy_from_slice(b"\r\n");
+
+        Ok(size)
+    }
+}
+
+impl<const N: usize> Decoder for LineBytesCodec<N> {
+    type Item = heapless::Vec<u8, N>;
+    type Error = LineBytesDecodeError;
+
+    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let src = Formatter(src);
+            tracing::debug!(seen=%self.seen, ?src, "Decoding");
+        }
+
+        while self.seen < src.len() {
+            if src[self.seen] == b'\n' {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                {
+                    let line_bytes_with_n = &src[..self.seen + 1];
+                    let src = Formatter(line_bytes_with_n);
+                    tracing::debug!(line=?src, "Found");
+                }
+
+                let line_bytes_without_n = &src[..self.seen];
+
+                let line_bytes = match line_bytes_without_n.last() {
+                    Some(b'\r') => &line_bytes_without_n[..self.seen - 1],
+                    _ => line_bytes_without_n,
+                };
+
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                {
+                    let src = Formatter(line_bytes);
+                    let consuming = self.seen + 1;
+                    tracing::debug!(frame=?src, %consuming, "Decoding frame");
+                }
+
+                let item = heapless::Vec::from_slice(line_bytes)
+                    .map_err(|_| LineBytesDecodeError::OutputBufferTooSmall)?;
+
+                let frame = Frame::new(self.seen + 1, item);
+
+                self.seen = 0;
+
+                return Ok(Some(frame));
+            }
+
+            self.seen += 1;
+        }
+
+        Ok(None)
+    }
+}
+
+impl<const N: usize> Encoder<heapless::Vec<u8, N>> for LineBytesCodec<N> {
+    type Error = LineBytesEncodeError;
+
+    fn encode(&mut self, item: heapless::Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        self.encode_slice(&item, dst)
+    }
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum LinesEncodeError {
+    LineBytesEncodeError(LineBytesEncodeError),
+}
+
+impl From<LineBytesEncodeError> for LinesEncodeError {
+    fn from(err: LineBytesEncodeError) -> Self {
+        Self::LineBytesEncodeError(err)
+    }
+}
+
+impl core::fmt::Display for LinesEncodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::LineBytesEncodeError(err) => write!(f, "Line bytes encoder error: {}", err),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for LinesEncodeError {}
+
 impl<const N: usize> LinesCodec<N> {
     /// Creates a new [`LinesCodec`].
     #[inline]
@@ -126,6 +253,13 @@ impl<const N: usize> LinesCodec<N> {
     #[inline]
     pub const fn seen(&self) -> usize {
         self.inner.seen()
+    }
+
+    pub fn encode_str(&self, item: &str, dst: &mut [u8]) -> Result<usize, LinesEncodeError> {
+        match self.inner.encode_slice(item.as_bytes(), dst) {
+            Ok(size) => Ok(size),
+            Err(err) => Err(LinesEncodeError::LineBytesEncodeError(err)),
+        }
     }
 }
 
@@ -153,64 +287,13 @@ impl<const N: usize> Decoder for LinesCodec<N> {
     }
 }
 
-const _: () = {
-    #[cfg(all(
-        feature = "logging",
-        any(feature = "log", feature = "defmt", feature = "tracing")
-    ))]
-    use crate::logging::formatter::Formatter;
+impl<const N: usize> Encoder<heapless::String<N>> for LinesCodec<N> {
+    type Error = LinesEncodeError;
 
-    impl<const N: usize> Decoder for LineBytesCodec<N> {
-        type Item = heapless::Vec<u8, N>;
-        type Error = LineBytesDecodeError;
-
-        fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let src = Formatter(src);
-                tracing::debug!(seen=%self.seen, ?src, "Decoding");
-            }
-
-            while self.seen < src.len() {
-                if src[self.seen] == b'\n' {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    {
-                        let line_bytes_with_n = &src[..self.seen + 1];
-                        let src = Formatter(line_bytes_with_n);
-                        tracing::debug!(line=?src, "Found");
-                    }
-
-                    let line_bytes_without_n = &src[..self.seen];
-
-                    let line_bytes = match line_bytes_without_n.last() {
-                        Some(b'\r') => &line_bytes_without_n[..self.seen - 1],
-                        _ => line_bytes_without_n,
-                    };
-
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    {
-                        let src = Formatter(line_bytes);
-                        let consuming = self.seen + 1;
-                        tracing::debug!(frame=?src, %consuming, "Decoding frame");
-                    }
-
-                    let item = heapless::Vec::from_slice(line_bytes)
-                        .map_err(|_| LineBytesDecodeError::OutputBufferTooSmall)?;
-
-                    let frame = Frame::new(self.seen + 1, item);
-
-                    self.seen = 0;
-
-                    return Ok(Some(frame));
-                }
-
-                self.seen += 1;
-            }
-
-            Ok(None)
-        }
+    fn encode(&mut self, item: heapless::String<N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        self.encode_str(&item, dst)
     }
-};
+}
 
 #[cfg(all(test, feature = "tokio"))]
 mod test {

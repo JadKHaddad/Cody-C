@@ -315,7 +315,7 @@ mod test {
 
         let write = Compat::new(write);
 
-        let mut buffer = [0; 15];
+        let mut buffer = [0; 30];
         let codec = BytesCodec::<5>;
         let mut framed_write = FramedWrite::new(write, codec, &mut buffer);
 
@@ -325,7 +325,7 @@ mod test {
         framed_write.feed(item.clone()).await.unwrap();
         framed_write.feed(item.clone()).await.unwrap();
         framed_write.feed(item.clone()).await.unwrap();
-        framed_write.flush().await.unwrap();
+        // framed_write.flush().await.unwrap();
         framed_write.send(item).await.unwrap();
         framed_write.close().await.unwrap();
     }

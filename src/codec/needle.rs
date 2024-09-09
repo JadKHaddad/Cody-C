@@ -1,6 +1,15 @@
-use crate::decode::{
-    decoder::{DecodeError, Decoder},
-    frame::Frame,
+#[cfg(all(
+    feature = "logging",
+    any(feature = "log", feature = "defmt", feature = "tracing")
+))]
+use crate::logging::formatter::Formatter;
+
+use crate::{
+    decode::{
+        decoder::{DecodeError, Decoder},
+        frame::Frame,
+    },
+    encode::encoder::Encoder,
 };
 
 /// A codec that searches for a needle in a haystack.
@@ -41,6 +50,23 @@ impl core::fmt::Display for NeedleDecodeError {
 #[cfg(feature = "std")]
 impl std::error::Error for NeedleDecodeError {}
 
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum NeedleEncodeError {
+    OutputBufferTooSmall,
+}
+
+impl core::fmt::Display for NeedleEncodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for NeedleEncodeError {}
+
 impl<'a, const N: usize> NeedleCodec<'a, N> {
     /// Creates a new [`NeedleCodec`] with the given needle.
     #[inline]
@@ -59,57 +85,76 @@ impl<'a, const N: usize> NeedleCodec<'a, N> {
     pub const fn seen(&self) -> usize {
         self.seen
     }
+
+    pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, NeedleEncodeError> {
+        let size = item.len() + self.needle.len();
+
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let item = Formatter(item);
+            tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
+        }
+
+        if dst.len() < size {
+            return Err(NeedleEncodeError::OutputBufferTooSmall);
+        }
+
+        dst[..item.len()].copy_from_slice(item);
+        dst[item.len()..size].copy_from_slice(self.needle);
+
+        Ok(size)
+    }
 }
 
-const _: () = {
-    #[cfg(all(
-        feature = "logging",
-        any(feature = "log", feature = "defmt", feature = "tracing")
-    ))]
-    use crate::logging::formatter::Formatter;
+impl<'a, const N: usize> Decoder for NeedleCodec<'a, N> {
+    type Item = heapless::Vec<u8, N>;
+    type Error = NeedleDecodeError;
 
-    impl<'a, const N: usize> Decoder for NeedleCodec<'a, N> {
-        type Item = heapless::Vec<u8, N>;
-        type Error = NeedleDecodeError;
+    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let src = Formatter(src);
+            tracing::debug!(needle=?self.needle, seen=%self.seen, ?src, "Decoding");
+        }
 
-        fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let src = Formatter(src);
-                tracing::debug!(needle=?self.needle, seen=%self.seen, ?src, "Decoding");
-            }
-
-            while self.seen < src.len() {
-                if src[self.seen..].starts_with(self.needle) {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
+        while self.seen < src.len() {
+            if src[self.seen..].starts_with(self.needle) {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                {
                     {
-                        {
-                            let src = Formatter(&src[..self.seen + self.needle.len()]);
-                            tracing::debug!(sequence=?src, "Found");
-                        }
-
-                        let src = Formatter(&src[..self.seen]);
-                        let consuming = self.seen + self.needle.len();
-                        tracing::debug!(frame=?src, %consuming, "Decoding frame");
+                        let src = Formatter(&src[..self.seen + self.needle.len()]);
+                        tracing::debug!(sequence=?src, "Found");
                     }
 
-                    let item = heapless::Vec::from_slice(&src[..self.seen])
-                        .map_err(|_| NeedleDecodeError::OutputBufferTooSmall)?;
-
-                    let frame = Frame::new(self.seen + self.needle.len(), item);
-
-                    self.seen = 0;
-
-                    return Ok(Some(frame));
+                    let src = Formatter(&src[..self.seen]);
+                    let consuming = self.seen + self.needle.len();
+                    tracing::debug!(frame=?src, %consuming, "Decoding frame");
                 }
 
-                self.seen += 1;
+                let item = heapless::Vec::from_slice(&src[..self.seen])
+                    .map_err(|_| NeedleDecodeError::OutputBufferTooSmall)?;
+
+                let frame = Frame::new(self.seen + self.needle.len(), item);
+
+                self.seen = 0;
+
+                return Ok(Some(frame));
             }
 
-            Ok(None)
+            self.seen += 1;
         }
+
+        Ok(None)
     }
-};
+}
+
+impl<'a, const N: usize> Encoder<heapless::Vec<u8, N>> for NeedleCodec<'a, N> {
+    type Error = NeedleEncodeError;
+
+    fn encode(&mut self, item: heapless::Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        self.encode_slice(&item, dst)
+    }
+}
 
 #[cfg(all(test, feature = "tokio"))]
 mod test {
