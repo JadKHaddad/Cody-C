@@ -7,7 +7,7 @@ pub enum Error<I, D> {
     BufferTooSmall,
     /// An IO error occurred while reading from the underlying source.
     IO(I),
-    /// Decoder consumed more bytes than available in the buffer.
+    /// Decoder consumed zero or more bytes than available in the buffer.
     #[cfg(feature = "decoder-checks")]
     BadDecoder,
     /// An error occurred while decoding a frame.
@@ -22,10 +22,10 @@ where
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::BufferTooSmall => write!(f, "Buffer too small"),
+            Self::IO(err) => write!(f, "IO error: {}", err),
             #[cfg(feature = "decoder-checks")]
             Self::BadDecoder => write!(f, "Bad decoder"),
             Self::Decode(err) => write!(f, "Decode error: {}", err),
-            Self::IO(err) => write!(f, "IO error: {}", err),
         }
     }
 }
