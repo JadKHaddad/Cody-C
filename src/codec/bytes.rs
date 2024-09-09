@@ -1,6 +1,9 @@
-use crate::decode::{
-    decoder::{DecodeError, Decoder},
-    frame::Frame,
+use crate::{
+    decode::{
+        decoder::{DecodeError, Decoder},
+        frame::Frame,
+    },
+    encode::encoder::Encoder,
 };
 
 /// A codec that spits out bytes as they come in.
@@ -30,6 +33,23 @@ impl core::fmt::Display for BytesDecodeError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for BytesDecodeError {}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum BytesEncodeError {
+    OutputBufferTooSmall,
+}
+
+impl core::fmt::Display for BytesEncodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for BytesEncodeError {}
 
 const _: () = {
     #[cfg(all(
@@ -65,6 +85,33 @@ const _: () = {
             let frame = Frame::new(size, item);
 
             Ok(Some(frame))
+        }
+    }
+
+    impl<const N: usize> Encoder<heapless::Vec<u8, N>> for BytesCodec<N> {
+        type Error = BytesEncodeError;
+
+        fn encode(
+            &mut self,
+            item: heapless::Vec<u8, N>,
+            dst: &mut [u8],
+        ) -> Result<usize, Self::Error> {
+            let size = item.len();
+            let item = item.as_slice();
+
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            {
+                let item = Formatter(item);
+                tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Framing");
+            }
+
+            if dst.len() < size {
+                return Err(BytesEncodeError::OutputBufferTooSmall);
+            }
+
+            dst[..size].copy_from_slice(item);
+
+            Ok(size)
         }
     }
 };
