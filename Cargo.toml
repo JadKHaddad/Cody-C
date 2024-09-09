@@ -82,7 +82,9 @@ harness = false
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
-# cargo test --features "codec, tokio" # will test stream, sink and codec. 
-# tokio will bring `AsyncReadCompat` into scope for the duplex
-# codec will bring codec into scope
+
+# use tokio feature for testing, to bring `Tokio Compat` into scope for the duplex
+# cargo test --no-default-features --features "codec, tokio"
+# cargo test --no-default-features --features "decoder-checks, tokio"
+
 # DO NOT RUN: cargo test --all-features (defmt will not compile)

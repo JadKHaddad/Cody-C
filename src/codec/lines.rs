@@ -173,10 +173,9 @@ const _: () = {
 
             while self.seen < src.len() {
                 if src[self.seen] == b'\n' {
-                    let line_bytes_with_n = &src[..self.seen + 1];
-
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
+                        let line_bytes_with_n = &src[..self.seen + 1];
                         let src = Formatter(line_bytes_with_n);
                         tracing::debug!(line=?src, "Found");
                     }

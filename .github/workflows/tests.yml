@@ -56,49 +56,53 @@ jobs:
       # Codec
 
       - name: Clippy -- codec
-        run: cargo clippy --features=codec -- -D warnings
+        run: cargo clippy --no-default-features --features=codec -- -D warnings
       
       # Compatibility
 
       - name: Clippy -- std
-        run: cargo clippy --features=std -- -D warnings
+        run: cargo clippy --no-default-features --features=std -- -D warnings
 
       - name: Clippy -- futures-io
-        run: cargo clippy --features=futures-io -- -D warnings
+        run: cargo clippy --no-default-features --features=futures-io -- -D warnings
 
       - name: Clippy -- embedded-io-async
-        run: cargo clippy --features=embedded-io-async -- -D warnings
+        run: cargo clippy --no-default-features --features=embedded-io-async -- -D warnings
 
       - name: Clippy -- embedded-io
-        run: cargo clippy --features=embedded-io -- -D warnings
+        run: cargo clippy --no-default-features --features=embedded-io -- -D warnings
 
       - name: Clippy -- tokio
-        run: cargo clippy --features=tokio -- -D warnings
+        run: cargo clippy --no-default-features --features=tokio -- -D warnings
       
       # Defmt
 
       - name: Clippy -- defmt
-        run: cargo clippy --features=defmt -- -D warnings
+        run: cargo clippy --no-default-features --features=defmt -- -D warnings
 
       # Logging
 
       - name: Clippy -- logging
-        run: cargo clippy --features=logging -- -D warnings
+        run: cargo clippy --no-default-features --features=logging -- -D warnings
 
       - name: Clippy -- logging pretty-hex-fmt
-        run: cargo clippy --features="logging,pretty-hex-fmt" -- -D warnings
+        run: cargo clippy --no-default-features --features="logging,pretty-hex-fmt" -- -D warnings
 
       - name: Clippy -- logging char-fmt
-        run: cargo clippy --features="logging,char-fmt" -- -D warnings
+        run: cargo clippy --no-default-features --features="logging,char-fmt" -- -D warnings
 
       - name: Clippy -- logging log
-        run: cargo clippy --features="logging,log" -- -D warnings
+        run: cargo clippy --no-default-features --features="logging,log" -- -D warnings
 
       - name: Clippy -- logging defmt
-        run: cargo clippy --features="logging,defmt" -- -D warnings
+        run: cargo clippy --no-default-features --features="logging,defmt" -- -D warnings
 
       - name: Clippy -- logging tracing
-        run: cargo clippy --features="logging,tracing" -- -D warnings
+        run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
 
-      - name: Test
-        run: cargo test --features "codec,tokio"
+       
+      - name: Test - codec framed_read
+        run: cargo test --no-default-features --features "codec,tokio"
+
+      - name: Test - framed_read with decoder-checks
+        run: cargo test --no-default-features --features "decoder-checks,tokio"

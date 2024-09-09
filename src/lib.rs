@@ -34,6 +34,5 @@ pub mod tokio;
 )]
 pub mod logging;
 
-// tokio needed for `Compat` for the duplex
-#[cfg(all(test, feature = "codec", feature = "tokio"))]
+#[cfg(test)]
 mod test;
