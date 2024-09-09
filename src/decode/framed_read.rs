@@ -88,14 +88,14 @@ pin_project! {
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct FramedRead<'a, D, R> {
         state: ReadFrame<'a>,
-        codec: D,
+        decoder: D,
         #[pin]
         inner: R,
     }
 }
 
 impl<'a, D, R> FramedRead<'a, D, R> {
-    pub fn new(inner: R, codec: D, buffer: &'a mut [u8]) -> Self {
+    pub fn new(inner: R, decoder: D, buffer: &'a mut [u8]) -> Self {
         Self {
             state: ReadFrame {
                 index: 0,
@@ -105,7 +105,7 @@ impl<'a, D, R> FramedRead<'a, D, R> {
                 total_consumed: 0,
                 buffer,
             },
-            codec,
+            decoder,
             inner,
         }
     }
@@ -114,16 +114,16 @@ impl<'a, D, R> FramedRead<'a, D, R> {
         &self.state
     }
 
-    pub const fn codec(&self) -> &D {
-        &self.codec
+    pub const fn decoder(&self) -> &D {
+        &self.decoder
     }
 
     pub const fn inner(&self) -> &R {
         &self.inner
     }
 
-    pub fn into_codec(self) -> D {
-        self.codec
+    pub fn into_decoder(self) -> D {
+        self.decoder
     }
 
     pub fn into_inner(self) -> R {
@@ -208,7 +208,7 @@ const _: () = {
 
                         // pausing
                         match this
-                            .codec
+                            .decoder
                             .decode_eof(&mut state.buffer[state.total_consumed..state.index])
                         {
                             // implicit pausing -> pausing or pausing -> paused
@@ -264,7 +264,7 @@ const _: () = {
                     tracing::trace!("Framing");
 
                     match this
-                        .codec
+                        .decoder
                         .decode(&mut state.buffer[state.total_consumed..state.index])
                     {
                         Ok(None) => {
