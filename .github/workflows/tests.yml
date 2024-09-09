@@ -108,4 +108,4 @@ jobs:
         run: cargo test --no-default-features --features "decoder-checks,tokio"
 
       - name: Test - freamed_write with encoder-checks
-        run: cargo test --no-default-features --features "encoder-checks,tokio,codec" # TODO: remove codec feature after updating framed_write tests
+        run: cargo test --no-default-features --features "encoder-checks,tokio"
