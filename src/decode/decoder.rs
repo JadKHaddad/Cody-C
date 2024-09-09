@@ -15,6 +15,10 @@ impl core::fmt::Display for DecodeError {
     }
 }
 
+impl From<DecodeError> for () {
+    fn from(_: DecodeError) -> Self {}
+}
+
 #[cfg(feature = "std")]
 impl std::error::Error for DecodeError {}
 
