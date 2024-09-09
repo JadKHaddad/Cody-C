@@ -101,8 +101,11 @@ jobs:
         run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
 
        
-      - name: Test - codec framed_read
+      - name: Test - codec framed_read freamed_write without (decoder-checks, encoder-checks)
         run: cargo test --no-default-features --features "codec,tokio"
 
       - name: Test - framed_read with decoder-checks
         run: cargo test --no-default-features --features "decoder-checks,tokio"
+
+      - name: Test - freamed_write with encoder-checks
+        run: cargo test --no-default-features --features "encoder-checks,tokio,codec" # TODO: remove codec feature after updating framed_write tests
