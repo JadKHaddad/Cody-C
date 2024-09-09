@@ -266,7 +266,7 @@ mod test {
     async fn test() {
         init_tracing();
 
-        let (_, write) = tokio::io::duplex(1024);
+        let (_read, write) = tokio::io::duplex(1024);
 
         tokio::spawn(async move {
             // for chunk in chunks {
