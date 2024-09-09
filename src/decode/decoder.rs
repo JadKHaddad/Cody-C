@@ -42,3 +42,8 @@ pub trait Decoder {
         }
     }
 }
+
+// TODO: we need a way to make the decoder give the Framer a hint about the incoming frame size
+// most protocols have a fixed size header that contains the size of the frame
+// the decoder will tipically read the header and determine the size of the frame. Currently the decoder gets only a buffer for what has been read so far and has no idea about the size of the frame
+// the decoder should be able to tell the framer how many bytes it needs to read to get the full frame, to avoid multiple reads
