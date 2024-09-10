@@ -5,7 +5,11 @@
 use crate::logging::formatter::Formatter;
 
 use crate::{
-    decode::{decoder::Decoder, frame::Frame},
+    decode::{
+        decoder::Decoder,
+        frame::Frame,
+        maybe_decoded::{FrameSize, MaybeDecoded},
+    },
     encode::encoder::Encoder,
 };
 
@@ -143,7 +147,7 @@ impl<const N: usize> Decoder for LineBytesCodec<N> {
     type Item = heapless::Vec<u8, N>;
     type Error = LineBytesDecodeError;
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let src = Formatter(src);
@@ -180,13 +184,13 @@ impl<const N: usize> Decoder for LineBytesCodec<N> {
 
                 self.seen = 0;
 
-                return Ok(Some(frame));
+                return Ok(MaybeDecoded::Frame(frame));
             }
 
             self.seen += 1;
         }
 
-        Ok(None)
+        Ok(MaybeDecoded::None(FrameSize::Unknown))
     }
 }
 
@@ -254,16 +258,16 @@ impl<const N: usize> Decoder for LinesCodec<N> {
     type Item = heapless::String<N>;
     type Error = LinesDecodeError;
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
         match self.inner.decode(src)? {
-            Some(frame) => {
+            MaybeDecoded::Frame(frame) => {
                 let size = frame.size();
                 let item = heapless::String::from_utf8(frame.into_item())
                     .map_err(LinesDecodeError::Utf8Error)?;
 
-                Ok(Some(Frame::new(size, item)))
+                Ok(MaybeDecoded::Frame(Frame::new(size, item)))
             }
-            None => Ok(None),
+            MaybeDecoded::None(frame_size) => Ok(MaybeDecoded::None(frame_size)),
         }
     }
 }

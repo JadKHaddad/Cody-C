@@ -5,7 +5,11 @@
 use crate::logging::formatter::Formatter;
 
 use crate::{
-    decode::{decoder::Decoder, frame::Frame},
+    decode::{
+        decoder::Decoder,
+        frame::Frame,
+        maybe_decoded::{FrameSize, MaybeDecoded},
+    },
     encode::encoder::Encoder,
 };
 
@@ -100,7 +104,7 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
     type Item = heapless::Vec<u8, N>;
     type Error = AnyDelimiterDecodeError;
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let src = Formatter(src);
@@ -128,13 +132,13 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
 
                 self.seen = 0;
 
-                return Ok(Some(frame));
+                return Ok(MaybeDecoded::Frame(frame));
             }
 
             self.seen += 1;
         }
 
-        Ok(None)
+        Ok(MaybeDecoded::None(FrameSize::Unknown))
     }
 }
 

@@ -174,15 +174,17 @@ const _: () = {
             &mut self,
             src: &mut tokio_util::bytes::BytesMut,
         ) -> Result<Option<Self::Item>, Self::Error> {
-            match self.as_mut().decode(src.as_mut()) {
-                Ok(None) => Ok(None),
-                Ok(Some(frame)) => {
-                    src.advance(frame.size());
+            // match self.as_mut().decode(src.as_mut()) {
+            //     Ok(None) => Ok(None),
+            //     Ok(Some(frame)) => {
+            //         src.advance(frame.size());
 
-                    Ok(Some(frame.into_item()))
-                }
-                Err(err) => Err(err),
-            }
+            //         Ok(Some(frame.into_item()))
+            //     }
+            //     Err(err) => Err(err),
+            // }
+
+            todo!()
         }
     }
 

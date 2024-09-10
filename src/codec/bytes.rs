@@ -7,7 +7,11 @@ use core::convert::Infallible;
 use crate::logging::formatter::Formatter;
 
 use crate::{
-    decode::{decoder::Decoder, frame::Frame},
+    decode::{
+        decoder::Decoder,
+        frame::Frame,
+        maybe_decoded::{FrameSize, MaybeDecoded},
+    },
     encode::encoder::Encoder,
 };
 
@@ -64,7 +68,7 @@ impl<const N: usize> Decoder for BytesCodec<N> {
     type Item = heapless::Vec<u8, N>;
     type Error = Infallible;
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let src = Formatter(src);
@@ -72,7 +76,7 @@ impl<const N: usize> Decoder for BytesCodec<N> {
         }
 
         let size = match src.len() {
-            0 => return Ok(None),
+            0 => return Ok(MaybeDecoded::None(FrameSize::Unknown)),
             n if n > N => N,
             n => n,
         };
@@ -86,7 +90,7 @@ impl<const N: usize> Decoder for BytesCodec<N> {
         let item = heapless::Vec::from_slice(&src[..size]).expect("unreachable");
         let frame = Frame::new(size, item);
 
-        Ok(Some(frame))
+        Ok(MaybeDecoded::Frame(frame))
     }
 }
 

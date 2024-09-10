@@ -1,5 +1,7 @@
 use pin_project_lite::pin_project;
 
+use crate::decode::maybe_decoded::{FrameSize, MaybeDecoded};
+
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I, D> {
@@ -219,7 +221,7 @@ const _: () = {
                             .decode_eof(&mut state.buffer[state.total_consumed..state.index])
                         {
                             // implicit pausing -> pausing or pausing -> paused
-                            Ok(Some(Frame { size, item })) => {
+                            Ok(MaybeDecoded::Frame(Frame { size, item })) => {
                                 state.total_consumed += size;
 
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -240,10 +242,10 @@ const _: () = {
 
                                 return Poll::Ready(Some(Ok(item)));
                             }
-                            Ok(None) => {
+                            Ok(MaybeDecoded::None(FrameSize::Unknown)) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
-                                    tracing::debug!("No frame decoded");
+                                    tracing::debug!("No frame decoded, unknown size");
                                     tracing::trace!("Setting unframable");
                                 }
 
@@ -265,6 +267,9 @@ const _: () = {
                                 }
 
                                 return Poll::Ready(None);
+                            }
+                            Ok(MaybeDecoded::None(frame_size)) => {
+                                todo!()
                             }
                             Err(err) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -288,28 +293,7 @@ const _: () = {
                         .decoder
                         .decode(&mut state.buffer[state.total_consumed..state.index])
                     {
-                        Ok(None) => {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::debug!("No frame decoded");
-                                tracing::trace!("Setting unframable");
-                            }
-
-                            if state.total_consumed > 0 {
-                                state
-                                    .buffer
-                                    .copy_within(state.total_consumed..state.index, 0);
-                                state.index -= state.total_consumed;
-                                state.total_consumed = 0;
-
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::debug!("Buffer shifted")
-                            }
-
-                            // framing -> reading
-                            state.is_framable = false;
-                        }
-                        Ok(Some(Frame { size, item })) => {
+                        Ok(MaybeDecoded::Frame(Frame { size, item })) => {
                             state.total_consumed += size;
 
                             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -345,6 +329,30 @@ const _: () = {
 
                             // implicit framing -> framing
                             return Poll::Ready(Some(Ok(item)));
+                        }
+                        Ok(MaybeDecoded::None(FrameSize::Unknown)) => {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::debug!("No frame decoded, unknown size");
+                                tracing::trace!("Setting unframable");
+                            }
+
+                            if state.total_consumed > 0 {
+                                state
+                                    .buffer
+                                    .copy_within(state.total_consumed..state.index, 0);
+                                state.index -= state.total_consumed;
+                                state.total_consumed = 0;
+
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::debug!("Buffer shifted")
+                            }
+
+                            // framing -> reading
+                            state.is_framable = false;
+                        }
+                        Ok(MaybeDecoded::None(frame_size)) => {
+                            todo!()
                         }
                         Err(err) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -455,8 +463,8 @@ mod test {
         type Item = ();
         type Error = ();
 
-        fn decode(&mut self, _: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
-            Ok(Some(Frame::new(2, ())))
+        fn decode(&mut self, _: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            Ok(MaybeDecoded::Frame(Frame::new(2, ())))
         }
     }
 
