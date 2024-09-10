@@ -632,8 +632,8 @@ mod test {
         }
     }
 
-    fn generate_chunks() -> Vec<Vec<u8>> {
-        std::vec![
+    fn generate_chunks() -> (Vec<Vec<u8>>, usize) {
+        let chunks = std::vec![
             Vec::from(b"\x00\x00\x00\x0f"),
             Vec::from(b"hello world"),
             Vec::from(b"\x00\x00\x00\x0f"),
@@ -662,7 +662,9 @@ mod test {
             Vec::from(b"hello world"),
             Vec::from(b"\x00\x00\x00\x0f"),
             Vec::from(b"hello world"),
-        ]
+        ];
+
+        (chunks, 9)
     }
 
     async fn decode_with_frame_size<const I: usize>(
@@ -692,8 +694,11 @@ mod test {
     async fn decode_with_frame_size_buffer_64() {
         init_tracing();
 
-        let items = decode_with_frame_size::<64>(generate_chunks()).await;
+        let (chunks, decoded_len) = generate_chunks();
 
+        let items = decode_with_frame_size::<64>(chunks).await;
+
+        assert!(items.len() == decoded_len);
         assert!(items.iter().all(Result::is_ok));
     }
 
@@ -701,8 +706,11 @@ mod test {
     async fn decode_with_frame_size_buffer_32() {
         init_tracing();
 
-        let items = decode_with_frame_size::<32>(generate_chunks()).await;
+        let (chunks, decoded_len) = generate_chunks();
 
+        let items = decode_with_frame_size::<32>(chunks).await;
+
+        assert!(items.len() == decoded_len);
         assert!(items.iter().all(Result::is_ok));
     }
 
@@ -710,8 +718,11 @@ mod test {
     async fn decode_with_frame_size_buffer_16() {
         init_tracing();
 
-        let items = decode_with_frame_size::<16>(generate_chunks()).await;
+        let (chunks, decoded_len) = generate_chunks();
 
+        let items = decode_with_frame_size::<16>(chunks).await;
+
+        assert!(items.len() == decoded_len);
         assert!(items.iter().all(Result::is_ok));
     }
 
@@ -719,8 +730,37 @@ mod test {
     async fn decode_with_frame_size_buffer_8() {
         init_tracing();
 
-        let items = decode_with_frame_size::<8>(generate_chunks()).await;
+        let (chunks, _) = generate_chunks();
 
+        let items = decode_with_frame_size::<8>(chunks).await;
+
+        assert!(items.len() == 1);
+        assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
+    }
+
+    #[tokio::test]
+    async fn decode_with_frame_large_size() {
+        init_tracing();
+
+        let chunks = std::vec![Vec::from(b"\x00\x00\xff\x00"), std::vec![0; 16]];
+
+        let items = decode_with_frame_size::<64>(chunks).await;
+
+        assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
+    }
+
+    #[tokio::test]
+    async fn decode_with_frame_size_buffer_16_last_frame_is_too_big() {
+        init_tracing();
+
+        let (mut chunks, chunks_len) = generate_chunks();
+
+        let bad_chunks = std::vec![Vec::from(b"\x00\x00\xff\x00"), std::vec![0; 16]];
+        chunks.extend_from_slice(&bad_chunks);
+
+        let items = decode_with_frame_size::<16>(chunks).await;
+
+        assert!(items.len() == chunks_len + 1);
         assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
     }
 
