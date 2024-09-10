@@ -516,6 +516,19 @@ mod test {
         }
     }
 
+    #[cfg(feature = "decoder-checks")]
+    struct DecoderReturningZeroSize;
+
+    #[cfg(feature = "decoder-checks")]
+    impl Decoder for DecoderReturningZeroSize {
+        type Item = ();
+        type Error = ();
+
+        fn decode(&mut self, _: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            Ok(MaybeDecoded::Frame(Frame::new(0, ())))
+        }
+    }
+
     #[tokio::test]
     #[should_panic]
     #[cfg(not(feature = "decoder-checks"))]
@@ -537,6 +550,22 @@ mod test {
 
         let read: &[u8] = b"111111111111111";
         let codec = DecoderReturningMoreSizeThanAvailable;
+        let buf = &mut [0_u8; 4];
+
+        let framed_read = FramedRead::new(read, codec, buf);
+        let items: Vec<_> = framed_read.collect().await;
+
+        let last_item = items.last().expect("No items");
+        assert!(matches!(last_item, Err(Error::BadDecoder)));
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "decoder-checks")]
+    async fn zero_size_bad_decoder() {
+        init_tracing();
+
+        let read: &[u8] = b"111111111111111";
+        let codec = DecoderReturningZeroSize;
         let buf = &mut [0_u8; 4];
 
         let framed_read = FramedRead::new(read, codec, buf);
