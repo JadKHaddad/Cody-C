@@ -5,10 +5,7 @@
 use crate::logging::formatter::Formatter;
 
 use crate::{
-    decode::{
-        decoder::{DecodeError, Decoder},
-        frame::Frame,
-    },
+    decode::{decoder::Decoder, frame::Frame},
     encode::encoder::Encoder,
 };
 
@@ -26,20 +23,12 @@ pub struct AnyDelimiterCodec<'a, const N: usize> {
 pub enum AnyDelimiterDecodeError {
     /// The decoded sequesnce of bytes is too large to fit into the return buffer.
     OutputBufferTooSmall,
-    DecodeError(DecodeError),
-}
-
-impl From<DecodeError> for AnyDelimiterDecodeError {
-    fn from(err: DecodeError) -> Self {
-        Self::DecodeError(err)
-    }
 }
 
 impl core::fmt::Display for AnyDelimiterDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
-            Self::DecodeError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }

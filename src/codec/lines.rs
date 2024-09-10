@@ -5,10 +5,7 @@
 use crate::logging::formatter::Formatter;
 
 use crate::{
-    decode::{
-        decoder::{DecodeError, Decoder},
-        frame::Frame,
-    },
+    decode::{decoder::Decoder, frame::Frame},
     encode::encoder::Encoder,
 };
 
@@ -24,20 +21,12 @@ pub struct LineBytesCodec<const N: usize> {
 pub enum LineBytesDecodeError {
     /// The decoded sequesnce of bytes is too large to fit into the return buffer.
     OutputBufferTooSmall,
-    DecodeError(DecodeError),
-}
-
-impl From<DecodeError> for LineBytesDecodeError {
-    fn from(err: DecodeError) -> Self {
-        Self::DecodeError(err)
-    }
 }
 
 impl core::fmt::Display for LineBytesDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
-            Self::DecodeError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }
@@ -78,7 +67,6 @@ pub struct LinesCodec<const N: usize> {
 pub enum LinesDecodeError {
     Utf8Error(core::str::Utf8Error),
     LineBytesDecodeError(LineBytesDecodeError),
-    DecodeError(DecodeError),
 }
 
 #[cfg(feature = "defmt")]
@@ -106,18 +94,11 @@ impl From<LineBytesDecodeError> for LinesDecodeError {
     }
 }
 
-impl From<DecodeError> for LinesDecodeError {
-    fn from(err: DecodeError) -> Self {
-        Self::DecodeError(err)
-    }
-}
-
 impl core::fmt::Display for LinesDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Utf8Error(err) => write!(f, "UTF-8 error: {}", err),
             Self::LineBytesDecodeError(err) => write!(f, "Line bytes decoder error: {}", err),
-            Self::DecodeError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }

@@ -7,6 +7,8 @@ pub enum Error<I, D> {
     BufferTooSmall,
     /// An IO error occurred while reading from the underlying source.
     IO(I),
+    /// Bytes remaining on the stream after EOF.
+    BytesRemainingOnStream,
     /// Decoder consumed zero or more bytes than available in the buffer.
     #[cfg(feature = "decoder-checks")]
     BadDecoder,
@@ -23,6 +25,7 @@ where
         match self {
             Self::BufferTooSmall => write!(f, "Buffer too small"),
             Self::IO(err) => write!(f, "IO error: {}", err),
+            Self::BytesRemainingOnStream => write!(f, "Bytes remaining on stream"),
             #[cfg(feature = "decoder-checks")]
             Self::BadDecoder => write!(f, "Bad decoder"),
             Self::Decode(err) => write!(f, "Decode error: {}", err),
@@ -246,6 +249,20 @@ const _: () = {
 
                                 // prepare pausing -> paused
                                 state.is_framable = false;
+
+                                if state.index != 0 {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::warn!("Bytes remaining on stream");
+                                        tracing::trace!("Setting error");
+
+                                        state.has_errored = true;
+
+                                        return Poll::Ready(Some(Err(
+                                            Error::BytesRemainingOnStream,
+                                        )));
+                                    }
+                                }
 
                                 return Poll::Ready(None);
                             }
