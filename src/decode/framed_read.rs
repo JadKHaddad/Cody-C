@@ -489,4 +489,6 @@ mod test {
         let last_item = items.last().expect("No items");
         assert!(matches!(last_item, Err(Error::BadDecoder)));
     }
+
+    // TODO test bytes remaining on stream
 }
