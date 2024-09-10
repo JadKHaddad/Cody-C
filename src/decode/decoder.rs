@@ -51,15 +51,13 @@ pub trait Decoder {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum MaybeDecoded<T> {
-    /// A frame was decoded.
     Frame(Frame<T>),
-    /// No frame was decoded, but more bytes are needed to decode a frame.
-    ///
-    /// - If `Some`, the value is the number of bytes still needed to decode a frame.
-    /// - If `None`, unknown number of bytes still needed to decode a frame.
-    ///
-    /// It is recommended to return the number of bytes still needed to decode a frame, if known.
-    /// This will allow the framer to decide early whether to read more bytes, shift the buffer, or return an error.
-    /// Setting the value to `None` will force the framer to fill up the buffer before calling the decoder again.
-    MoreBytesNeeded(Option<usize>),
+    None(FrameSize),
+}
+
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum FrameSize {
+    Unknown,
+    Known(usize),
 }
