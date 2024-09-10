@@ -341,6 +341,10 @@ const _: () = {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     tracing::trace!("Unknown frame size");
 
+                                    // or shift the buffer on first unsuccessful frame decode attempt.
+                                    // this will avoid multiple reads at the cost of a memcpy.
+
+                                    // if state.total_consumed > 0 {}
                                     if state.index >= state.buffer.len() {
                                         state
                                             .buffer
