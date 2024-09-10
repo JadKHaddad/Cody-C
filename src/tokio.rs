@@ -179,7 +179,8 @@ const _: () = {
             match self.as_mut().decode(src.as_mut()) {
                 Ok(MaybeDecoded::None(FrameSize::Unknown)) => Ok(None),
                 Ok(MaybeDecoded::None(FrameSize::Known(size))) => {
-                    // we can reserve the size of the frame
+                    src.reserve(size);
+
                     Ok(None)
                 }
                 Ok(MaybeDecoded::Frame(frame)) => {
