@@ -6,8 +6,9 @@ use crate::logging::formatter::Formatter;
 
 use crate::{
     decode::{
-        decoder::{DecodeError, Decoder},
+        decoder::Decoder,
         frame::Frame,
+        maybe_decoded::{FrameSize, MaybeDecoded},
     },
     encode::encoder::Encoder,
 };
@@ -26,20 +27,12 @@ pub struct AnyDelimiterCodec<'a, const N: usize> {
 pub enum AnyDelimiterDecodeError {
     /// The decoded sequesnce of bytes is too large to fit into the return buffer.
     OutputBufferTooSmall,
-    DecodeError(DecodeError),
-}
-
-impl From<DecodeError> for AnyDelimiterDecodeError {
-    fn from(err: DecodeError) -> Self {
-        Self::DecodeError(err)
-    }
 }
 
 impl core::fmt::Display for AnyDelimiterDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
-            Self::DecodeError(err) => write!(f, "Decoder error: {}", err),
         }
     }
 }
@@ -111,7 +104,7 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
     type Item = heapless::Vec<u8, N>;
     type Error = AnyDelimiterDecodeError;
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<Option<Frame<Self::Item>>, Self::Error> {
+    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let src = Formatter(src);
@@ -139,13 +132,13 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
 
                 self.seen = 0;
 
-                return Ok(Some(frame));
+                return Ok(MaybeDecoded::Frame(frame));
             }
 
             self.seen += 1;
         }
 
-        Ok(None)
+        Ok(MaybeDecoded::None(FrameSize::Unknown))
     }
 }
 
