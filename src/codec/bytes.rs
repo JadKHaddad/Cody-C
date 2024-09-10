@@ -20,9 +20,6 @@ use crate::{
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct BytesCodec<const N: usize>;
 
-#[cfg(feature = "std")]
-impl std::error::Error for BytesDecodeError {}
-
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BytesEncodeError {

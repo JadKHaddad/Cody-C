@@ -1,8 +1,5 @@
 use super::maybe_decoded::MaybeDecoded;
 
-#[cfg(feature = "std")]
-impl std::error::Error for DecodeError {}
-
 pub trait Decoder {
     type Item;
     type Error;

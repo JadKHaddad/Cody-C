@@ -81,7 +81,6 @@ impl defmt::Format for LinesDecodeError {
             Self::LineBytesDecodeError(err) => {
                 defmt::write!(f, "Line bytes decoder error: {}", err)
             }
-            Self::DecodeError(err) => defmt::write!(f, "Decoder error: {}", err),
         }
     }
 }
