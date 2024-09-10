@@ -361,11 +361,11 @@ const _: () = {
                                         {
                                             tracing::warn!(frame_size, buffer=%state.buffer.len(), "Frame size too large");
                                             tracing::trace!("Setting error");
-
-                                            state.has_errored = true;
-
-                                            return Poll::Ready(Some(Err(Error::BufferTooSmall)));
                                         }
+
+                                        state.has_errored = true;
+
+                                        return Poll::Ready(Some(Err(Error::BufferTooSmall)));
                                     }
 
                                     // check if we need to shift the buffer. does the frame fit between the total_consumed and buffer.len()?
@@ -750,7 +750,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn decode_with_frame_size_buffer_16_last_frame_is_too_big() {
+    async fn decode_with_frame_size_buffer_16_last_frame_large_size() {
         init_tracing();
 
         let (mut chunks, chunks_len) = generate_chunks();
