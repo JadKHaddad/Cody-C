@@ -2,6 +2,8 @@ use core::borrow::{Borrow, BorrowMut};
 
 use tokio_util::bytes::Buf;
 
+use crate::decode::maybe_decoded::{FrameSize, MaybeDecoded};
+
 /// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) ans [`Tokio's AsyncWrite`](tokio::io::AsyncWrite)
 ///
 /// - Converts a [`Tokio's AsyncRead`](tokio::io::AsyncRead) into a [`Crate's AsyncRead`](crate::decode::async_read::AsyncRead).
@@ -174,17 +176,19 @@ const _: () = {
             &mut self,
             src: &mut tokio_util::bytes::BytesMut,
         ) -> Result<Option<Self::Item>, Self::Error> {
-            // match self.as_mut().decode(src.as_mut()) {
-            //     Ok(None) => Ok(None),
-            //     Ok(Some(frame)) => {
-            //         src.advance(frame.size());
+            match self.as_mut().decode(src.as_mut()) {
+                Ok(MaybeDecoded::None(FrameSize::Unknown)) => Ok(None),
+                Ok(MaybeDecoded::None(FrameSize::Known(size))) => {
+                    // we can reserve the size of the frame
+                    Ok(None)
+                }
+                Ok(MaybeDecoded::Frame(frame)) => {
+                    src.advance(frame.size());
 
-            //         Ok(Some(frame.into_item()))
-            //     }
-            //     Err(err) => Err(err),
-            // }
-
-            todo!()
+                    Ok(Some(frame.into_item()))
+                }
+                Err(err) => Err(err),
+            }
         }
     }
 

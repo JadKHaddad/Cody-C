@@ -58,6 +58,7 @@ pub struct ReadFrame<'a> {
     has_errored: bool,
     /// Total number of bytes decoded in a framing round.
     total_consumed: usize,
+    frame_size: Option<usize>,
     /// The underlying buffer to read into.
     buffer: &'a mut [u8],
 }
@@ -70,6 +71,7 @@ impl<'a> ReadFrame<'a> {
             is_framable: false,
             has_errored: false,
             total_consumed: 0,
+            frame_size: None,
             buffer,
         }
     }
@@ -242,10 +244,10 @@ const _: () = {
 
                                 return Poll::Ready(Some(Ok(item)));
                             }
-                            Ok(MaybeDecoded::None(FrameSize::Unknown)) => {
+                            Ok(MaybeDecoded::None(_)) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
-                                    tracing::debug!("No frame decoded, unknown size");
+                                    tracing::debug!("No frame decoded");
                                     tracing::trace!("Setting unframable");
                                 }
 
@@ -267,9 +269,6 @@ const _: () = {
                                 }
 
                                 return Poll::Ready(None);
-                            }
-                            Ok(MaybeDecoded::None(frame_size)) => {
-                                todo!()
                             }
                             Err(err) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -330,29 +329,63 @@ const _: () = {
                             // implicit framing -> framing
                             return Poll::Ready(Some(Ok(item)));
                         }
-                        Ok(MaybeDecoded::None(FrameSize::Unknown)) => {
+                        Ok(MaybeDecoded::None(frame_size)) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
                             {
-                                tracing::debug!("No frame decoded, unknown size");
+                                tracing::debug!("No frame decoded");
                                 tracing::trace!("Setting unframable");
                             }
 
-                            if state.total_consumed > 0 {
-                                state
-                                    .buffer
-                                    .copy_within(state.total_consumed..state.index, 0);
-                                state.index -= state.total_consumed;
-                                state.total_consumed = 0;
+                            match frame_size {
+                                FrameSize::Unknown => {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!("Unknown frame size");
 
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::debug!("Buffer shifted")
+                                    if state.index >= state.buffer.len() {
+                                        state
+                                            .buffer
+                                            .copy_within(state.total_consumed..state.index, 0);
+                                        state.index -= state.total_consumed;
+                                        state.total_consumed = 0;
+
+                                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                                        tracing::debug!("Buffer shifted")
+                                    }
+                                }
+                                FrameSize::Known(frame_size) => {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!(frame_size, "Known frame size");
+
+                                    if frame_size > state.buffer.len() {
+                                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                                        {
+                                            tracing::warn!(frame_size, buffer=%state.buffer.len(), "Frame size too large");
+                                            tracing::trace!("Setting error");
+
+                                            state.has_errored = true;
+
+                                            return Poll::Ready(Some(Err(Error::BufferTooSmall)));
+                                        }
+                                    }
+
+                                    // check if we need to shift the buffer. does the frame fit between the total_consumed and buffer.len()?
+                                    if state.buffer.len() - state.total_consumed < frame_size {
+                                        state
+                                            .buffer
+                                            .copy_within(state.total_consumed..state.index, 0);
+                                        state.index -= state.total_consumed;
+                                        state.total_consumed = 0;
+
+                                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                                        tracing::debug!("Buffer shifted")
+                                    }
+
+                                    state.frame_size = Some(frame_size);
+                                }
                             }
 
                             // framing -> reading
                             state.is_framable = false;
-                        }
-                        Ok(MaybeDecoded::None(frame_size)) => {
-                            todo!()
                         }
                         Err(err) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -432,11 +465,26 @@ const _: () = {
                     }
                 }
 
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::trace!("Setting framable");
+                match state.frame_size {
+                    Some(frame_size) => {
+                        if state.index - state.total_consumed >= frame_size {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::trace!(frame_size, "Frame size reached");
+                                tracing::trace!("Setting framable");
+                            }
 
-                // paused -> framing or reading -> framing or reading -> pausing
-                state.is_framable = true;
+                            // paused -> framing or reading -> framing or reading -> pausing
+                            state.is_framable = true;
+
+                            state.frame_size = None;
+                        }
+                    }
+                    None => {
+                        // paused -> framing or reading -> framing or reading -> pausing
+                        state.is_framable = true;
+                    }
+                }
             }
         }
     }
