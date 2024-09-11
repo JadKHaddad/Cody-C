@@ -11,7 +11,7 @@ pub enum Error<I, D> {
     IO(I),
     /// Bytes remaining on the stream after EOF.
     BytesRemainingOnStream,
-    /// Decoder consumed zero or more bytes than available in the buffer.
+    /// Decoder consumed zero or more bytes than available in the buffer or promissed a frame size and failed to decode it.
     #[cfg(feature = "decoder-checks")]
     BadDecoder,
     /// An error occurred while decoding a frame.
@@ -539,11 +539,23 @@ const _: () = {
                             {
                                 state.frame_size = None;
                             }
+
+                            continue;
                         }
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        if !frame_size_reached {
-                            tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
+                        tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
+
+                        if state.eof && state.index != 0 {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::warn!("Bytes remaining on stream");
+                                tracing::trace!("Setting error");
+
+                                state.has_errored = true;
+
+                                return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
+                            }
                         }
                     }
                     None => {
@@ -871,7 +883,80 @@ mod test {
         assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
     }
 
-    // TODO test bytes remaining on stream
-    // TODO test after none is always none
-    // TODO test after error is always none
+    struct DecoderAlwaysReturnsUnknonwnFrameSize;
+
+    impl Decoder for DecoderAlwaysReturnsUnknonwnFrameSize {
+        type Item = ();
+        type Error = ();
+
+        fn decode(&mut self, _: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            Ok(MaybeDecoded::None(FrameSize::Unknown))
+        }
+    }
+
+    #[tokio::test]
+    async fn bytes_remainning_on_stream() {
+        init_tracing();
+
+        let (chunks, _) = generate_chunks();
+        let chunks = chunks.into_iter().take(8).collect::<Vec<_>>();
+
+        let codec = DecoderAlwaysReturnsUnknonwnFrameSize;
+
+        let items = decode_with_latency::<64, _>(codec, chunks).await;
+
+        assert!(items.len() == 1);
+        assert!(matches!(
+            items.last(),
+            Some(Err(Error::BytesRemainingOnStream))
+        ));
+    }
+
+    #[tokio::test]
+    async fn after_none_is_none() {
+        init_tracing();
+
+        let read: &[u8] = b"\x00\x00\x00\x0fhello world";
+
+        let codec = FrameSizeAwareDecoder;
+        let buf = &mut [0_u8; 46];
+
+        let mut framed_read = FramedRead::new(read, codec, buf);
+
+        while framed_read.next().await.is_some() {}
+
+        let item = framed_read.next().await;
+
+        assert!(item.is_none());
+    }
+
+    #[tokio::test]
+    async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is_set_and_after_error_is_none(
+    ) {
+        init_tracing();
+
+        let read: &[u8] = b"\x00\x00\x00\x0fhello world\x00\x00\x00\x0f";
+
+        let codec = FrameSizeAwareDecoder;
+        let buf = &mut [0_u8; 46];
+
+        let mut framed_read = FramedRead::new(read, codec, buf);
+
+        let mut items = Vec::new();
+
+        while let Some(item) = framed_read.next().await {
+            items.push(item);
+        }
+
+        assert!(matches!(
+            items.last(),
+            Some(Err(Error::BytesRemainingOnStream))
+        ));
+
+        let item = framed_read.next().await;
+
+        assert!(item.is_none());
+    }
+
+    // TODO: test bytes_remaining_on_stream_and_after_error_is_none with a real decoder that does not promiss, like a line decoder
 }

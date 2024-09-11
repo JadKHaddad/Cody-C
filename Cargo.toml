@@ -9,7 +9,7 @@ readme = "README.md"
 [features]
 default = [
     "buffer-early-shift",
-    "decoder-checks",
+    #"decoder-checks",
     "encoder-checks",
     "codec",
     "embedded-io-async",
