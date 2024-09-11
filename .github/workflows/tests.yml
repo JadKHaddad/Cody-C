@@ -99,7 +99,6 @@ jobs:
 
       - name: Clippy -- logging tracing
         run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
-
        
       - name: Test - codec framed_read freamed_write without (decoder-checks, encoder-checks)
         run: cargo test --no-default-features --features "codec,tokio"
