@@ -100,11 +100,17 @@ jobs:
       - name: Clippy -- logging tracing
         run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
        
-      - name: Test - codec framed_read freamed_write without (decoder-checks, encoder-checks)
+      - name: Test - codec framed_read freamed_write without (decoder-checks, encoder-checks, buffer-early-shift)
         run: cargo test --no-default-features --features "codec,tokio"
 
-      - name: Test - framed_read with decoder-checks
+      - name: Test - codec framed_read freamed_write with buffer-early-shift without (decoder-checks, encoder-checks)
+        run: cargo test --no-default-features --features "codec,tokio,buffer-early-shift"
+
+      - name: Test - framed_read with decoder-checks without buffer-early-shift
         run: cargo test --no-default-features --features "decoder-checks,tokio"
+
+      - name: Test - framed_read with decoder-checks and buffer-early-shift
+        run: cargo test --no-default-features --features "decoder-checks,tokio,buffer-early-shift"
 
       - name: Test - freamed_write with encoder-checks
         run: cargo test --no-default-features --features "encoder-checks,tokio"

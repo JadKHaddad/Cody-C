@@ -376,13 +376,13 @@ const _: () = {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     tracing::trace!("Unknown frame size");
 
-                                    // or shift the buffer on first unsuccessful frame decode attempt.
-                                    // this will avoid multiple reads at the cost of a memcpy.
-                                    // shift now by copying (index - total_consumed) bytes
-                                    // shift on end by copying (buffer.len() - total_consumed) bytes in worst case
+                                    #[cfg(feature = "buffer-early-shift")]
+                                    let shift = state.total_consumed > 0;
 
-                                    // if state.total_consumed > 0 {}
-                                    if state.index >= state.buffer.len() {
+                                    #[cfg(not(feature = "buffer-early-shift"))]
+                                    let shift = state.index >= state.buffer.len();
+
+                                    if shift {
                                         state
                                             .buffer
                                             .copy_within(state.total_consumed..state.index, 0);
