@@ -271,13 +271,11 @@ const _: () = {
                                     {
                                         tracing::warn!("Bytes remaining on stream");
                                         tracing::trace!("Setting error");
-
-                                        state.has_errored = true;
-
-                                        return Poll::Ready(Some(Err(
-                                            Error::BytesRemainingOnStream,
-                                        )));
                                     }
+
+                                    state.has_errored = true;
+
+                                    return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                                 }
 
                                 return Poll::Ready(None);
@@ -485,17 +483,18 @@ const _: () = {
                     }
                     Poll::Ready(Ok(0)) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!("Got EOF");
+                        tracing::warn!("Got EOF");
 
-                        if state.eof {
+                        if state.frame_size.is_some() {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::debug!("Already at EOF");
+                            {
+                                tracing::warn!("Bytes remaining on stream");
+                                tracing::trace!("Setting error");
+                            }
 
-                            // We're already at an EOF, and since we've reached this path
-                            // we're also not readable. This implies that we've already finished
-                            // our `decode_eof` handling, so we can simply return `None`.
-                            // implicit paused -> paused
-                            return Poll::Ready(None);
+                            state.has_errored = true;
+
+                            return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                         }
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -545,18 +544,6 @@ const _: () = {
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
-
-                        if state.eof && state.index != 0 {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::warn!("Bytes remaining on stream");
-                                tracing::trace!("Setting error");
-
-                                state.has_errored = true;
-
-                                return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
-                            }
-                        }
                     }
                     None => {
                         // paused -> framing or reading -> framing or reading -> pausing
