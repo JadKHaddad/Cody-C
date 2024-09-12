@@ -208,19 +208,6 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Framing on EOF");
 
-                        #[cfg(not(feature = "decode-enmpty-buffer"))]
-                        if state.total_consumed == state.index {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::debug!("Buffer empty");
-                                tracing::trace!("Setting unframable");
-                            }
-
-                            state.is_framable = false;
-
-                            return Poll::Ready(None);
-                        }
-
                         // pausing
                         match this
                             .decoder
@@ -266,7 +253,7 @@ const _: () = {
                                 // prepare pausing -> paused
                                 state.is_framable = false;
 
-                                if state.index != 0 {
+                                if state.index != state.total_consumed {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
                                         tracing::warn!("Bytes remaining on stream");
@@ -346,6 +333,9 @@ const _: () = {
 
                             #[cfg(feature = "decoder-checks")]
                             {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Unsetting frame size");
+
                                 state.frame_size = None;
                             }
 
@@ -398,6 +388,19 @@ const _: () = {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     tracing::trace!(frame_size, "Known frame size");
 
+                                    #[cfg(feature = "decoder-checks")]
+                                    if frame_size == 0 {
+                                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                                        {
+                                            tracing::warn!(%frame_size, "Bad decoder. Decoder promissed a frame size of 0");
+                                            tracing::trace!("Setting error");
+                                        }
+
+                                        state.has_errored = true;
+
+                                        return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                    }
+
                                     if frame_size > state.buffer.len() {
                                         #[cfg(all(feature = "logging", feature = "tracing"))]
                                         {
@@ -424,6 +427,9 @@ const _: () = {
                                             tracing::debug!(%copied, "Buffer shifted");
                                         }
                                     }
+
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!("Setting frame size");
 
                                     state.frame_size = Some(frame_size);
                                 }
@@ -485,6 +491,19 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::warn!("Got EOF");
 
+                        // if polled again after EOF reached
+                        if state.eof {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            tracing::warn!("Already EOF");
+
+                            return Poll::Ready(None);
+                        }
+
+                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                        tracing::trace!("Setting EOF");
+
+                        state.eof = true;
+
                         match state.frame_size {
                             Some(_) => {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -498,15 +517,21 @@ const _: () = {
                                 return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                             }
                             None => {
+                                #[cfg(not(feature = "decode-enmpty-buffer"))]
+                                if state.total_consumed == state.index {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::debug!("Buffer empty");
+                                    }
+
+                                    return Poll::Ready(None);
+                                }
+
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 tracing::trace!("Setting framable");
-                                tracing::trace!("Setting EOF");
 
                                 // paused -> framing or reading -> framing or reading -> pausing
                                 state.is_framable = true;
-
-                                // prepare reading -> paused
-                                state.eof = true;
                             }
                         }
                     }
@@ -514,9 +539,11 @@ const _: () = {
                         state.index += n;
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!(bytes=%n, "Bytes read");
+                        {
+                            tracing::debug!(bytes=%n, "Bytes read");
+                            tracing::trace!("Unsetting EOF");
+                        }
 
-                        // prepare paused -> framing or noop reading -> framing
                         state.eof = false;
 
                         match state.frame_size {
@@ -524,29 +551,33 @@ const _: () = {
                                 let frame_size_reached =
                                     state.index - state.total_consumed >= frame_size;
 
-                                if frame_size_reached {
+                                if !frame_size_reached {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::trace!(frame_size, "Frame size reached");
-                                        tracing::trace!("Setting framable");
-                                    }
-
-                                    // paused -> framing or reading -> framing or reading -> pausing
-                                    state.is_framable = true;
-
-                                    #[cfg(not(feature = "decoder-checks"))]
-                                    {
-                                        state.frame_size = None;
-                                    }
+                                    tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
 
                                     continue;
                                 }
 
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
+                                {
+                                    tracing::trace!(frame_size, "Frame size reached");
+                                    tracing::trace!("Setting framable");
+                                }
+
+                                state.is_framable = true;
+
+                                #[cfg(not(feature = "decoder-checks"))]
+                                {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!("Unsetting frame size");
+
+                                    state.frame_size = None;
+                                }
                             }
                             None => {
-                                // paused -> framing or reading -> framing or reading -> pausing
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Setting framable");
+
                                 state.is_framable = true;
                             }
                         }
