@@ -279,7 +279,7 @@ impl<const N: usize> Encoder<heapless::String<N>> for LinesCodec<N> {
     }
 }
 
-#[cfg(all(test, feature = "tokio"))]
+#[cfg(test)]
 mod test {
     extern crate std;
 

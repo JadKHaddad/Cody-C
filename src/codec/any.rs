@@ -150,7 +150,7 @@ impl<'a, const N: usize> Encoder<heapless::Vec<u8, N>> for AnyDelimiterCodec<'a,
     }
 }
 
-#[cfg(all(test, feature = "tokio"))]
+#[cfg(test)]
 mod test {
     extern crate std;
 

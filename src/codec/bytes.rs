@@ -105,7 +105,7 @@ impl<const N: usize> Default for BytesCodec<N> {
     }
 }
 
-#[cfg(all(test, feature = "tokio"))]
+#[cfg(test)]
 mod test {
     extern crate std;
 
