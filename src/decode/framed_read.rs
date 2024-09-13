@@ -2,6 +2,7 @@ use pin_project_lite::pin_project;
 
 use crate::decode::maybe_decoded::{FrameSize, MaybeDecoded};
 
+/// An error that occurred while decoding a frame from an [`AsyncRead`](crate::decode::async_read::AsyncRead) source.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I, D> {
@@ -54,16 +55,19 @@ pub struct ReadFrame<'a> {
     eof: bool,
     /// The buffer is currently framable.
     is_framable: bool,
-    /// An error occurred while decoding a frame.
+    /// An error occurred while decoding a frame or reading from the underlying source.
     has_errored: bool,
     /// Total number of bytes decoded in a framing round.
     total_consumed: usize,
+    /// The size of the next frame to decode.
     frame_size: Option<usize>,
     /// The underlying buffer to read into.
     buffer: &'a mut [u8],
 }
 
+/// Internal state for reading a frame.
 impl<'a> ReadFrame<'a> {
+    /// Creates a new [`ReadFrame`] with the given buffer.
     pub(crate) fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             index: 0,
@@ -76,36 +80,47 @@ impl<'a> ReadFrame<'a> {
         }
     }
 
+    /// Returns the current index in the buffer.
     pub const fn index(&self) -> usize {
         self.index
     }
 
+    /// Returns whether EOF was reached while decoding.
     pub const fn eof(&self) -> bool {
         self.eof
     }
 
+    /// Returns whether the buffer is currently framable.
     pub const fn is_framable(&self) -> bool {
         self.is_framable
     }
 
+    /// Returns whether an error occurred while decoding a frame or reading from the underlying source.
     pub const fn has_errored(&self) -> bool {
         self.has_errored
     }
 
+    /// Returns the total number of bytes decoded in a framing round.
     pub const fn total_consumed(&self) -> usize {
         self.total_consumed
     }
 
+    /// Returns the size of the next frame to decode.
     pub const fn buffer(&'a self) -> &'a [u8] {
         self.buffer
     }
 
+    /// Returns the size of the next frame to decode.
     pub const fn framable(&self) -> usize {
         self.index - self.total_consumed
     }
 }
 
 pin_project! {
+    /// A stream of Frames decoded from an underlying readable source.
+    ///
+    /// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::decode::async_read::AsyncRead) source.
+    /// - [`Iterator`](core::iter::Iterator) of frames decoded from a [`Read`](crate::decode::read::Read) source. (Not yet implemented)
     #[derive(Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct FramedRead<'a, D, R> {
@@ -117,6 +132,7 @@ pin_project! {
 }
 
 impl<'a, D, R> FramedRead<'a, D, R> {
+    /// Creates a new [`FramedRead`] with the given `decoder`, `buffer`, and underlying source.
     pub fn new(inner: R, decoder: D, buffer: &'a mut [u8]) -> Self {
         Self {
             state: ReadFrame::new(buffer),
@@ -125,22 +141,27 @@ impl<'a, D, R> FramedRead<'a, D, R> {
         }
     }
 
+    /// Returns the current state of the [`FramedRead`].
     pub const fn state(&self) -> &ReadFrame<'a> {
         &self.state
     }
 
+    /// Returns a reference to the decoder.
     pub const fn decoder(&self) -> &D {
         &self.decoder
     }
 
+    /// Returns a reference to the underlying source.
     pub const fn inner(&self) -> &R {
         &self.inner
     }
 
+    /// Returns the decoder consuming the [`FramedRead`].
     pub fn into_decoder(self) -> D {
         self.decoder
     }
 
+    /// Returns the underlying source consuming the [`FramedRead`].
     pub fn into_inner(self) -> R {
         self.inner
     }
