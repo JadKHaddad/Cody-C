@@ -1,8 +1,12 @@
 use core::future::Future;
 
+/// An asynchronous reader.
+///
+/// The core `Stream` functionality of this crate is built around this trait.
 pub trait AsyncRead {
     type Error;
 
+    /// Reads bytes from the underlying source into the provided buffer returning how many bytes were read.
     fn read<'a>(
         &'a mut self,
         buf: &'a mut [u8],

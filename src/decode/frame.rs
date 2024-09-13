@@ -14,20 +14,25 @@ pub struct Frame<T> {
 
 impl<T> Frame<T> {
     #[inline]
+    /// Creates a new [`Frame`] with the given `size` and `item`.
     pub const fn new(size: usize, item: T) -> Self {
         Self { size, item }
     }
 
     #[inline]
+    /// Returns the number of bytes consumed from the buffer.
     pub const fn size(&self) -> usize {
         self.size
     }
 
     #[inline]
+    /// Returns the decoded item.
     pub const fn item(&self) -> &T {
         &self.item
     }
 
+    #[inline]
+    /// Returns the decoded item consuming the [`Frame`].
     pub fn into_item(self) -> T {
         self.item
     }
