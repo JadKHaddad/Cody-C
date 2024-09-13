@@ -175,10 +175,7 @@ const _: () = {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
                 tracing::trace!("Entering loop");
 
-                // Return `None` if we have encountered an error from the underlying decoder
                 if state.has_errored {
-                    // preparing has_errored -> paused
-
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     tracing::trace!("Error already");
 
@@ -191,29 +188,15 @@ const _: () = {
                     tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
                 }
 
-                // Repeatedly call `decode` or `decode_eof` while the buffer is "readable",
-                // i.e. it _might_ contain data consumable as a frame or closing frame.
-                // Both signal that there is no such data by returning `None`.
-                //
-                // If `decode` couldn't read a frame and the upstream source has returned eof,
-                // `decode_eof` will attempt to decode the remaining bytes as closing frames.
-                //
-                // If the underlying AsyncRead is resumable, we may continue after an EOF,
-                // but must finish emitting all of it's associated `decode_eof` frames.
-                // Furthermore, we don't want to emit any `decode_eof` frames on retried
-                // reads after an EOF unless we've actually read more data.
                 if state.is_framable {
-                    // pausing or framing
                     if state.eof {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Framing on EOF");
 
-                        // pausing
                         match this
                             .decoder
                             .decode_eof(&mut state.buffer[state.total_consumed..state.index])
                         {
-                            // implicit pausing -> pausing or pausing -> paused
                             Ok(MaybeDecoded::Frame(Frame { size, item })) => {
                                 state.total_consumed += size;
 
@@ -250,7 +233,6 @@ const _: () = {
                                     tracing::trace!("Setting unframable");
                                 }
 
-                                // prepare pausing -> paused
                                 state.is_framable = false;
 
                                 if state.index != state.total_consumed {
@@ -281,7 +263,6 @@ const _: () = {
                         }
                     }
 
-                    // framing
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     tracing::trace!("Framing");
 
@@ -339,7 +320,6 @@ const _: () = {
                                 state.frame_size = None;
                             }
 
-                            // implicit framing -> framing
                             return Poll::Ready(Some(Ok(item)));
                         }
                         Ok(MaybeDecoded::None(frame_size)) => {
@@ -413,7 +393,7 @@ const _: () = {
                                         return Poll::Ready(Some(Err(Error::BufferTooSmall)));
                                     }
 
-                                    // check if we need to shift the buffer. does the frame fit between the total_consumed and buffer.len()?
+                                    // Check if we need to shift the buffer. Does the frame fit between the total_consumed and buffer.len()?
                                     if state.buffer.len() - state.total_consumed < frame_size {
                                         state
                                             .buffer
@@ -438,7 +418,6 @@ const _: () = {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
                             tracing::trace!("Setting unframable");
 
-                            // framing -> reading
                             state.is_framable = false;
                         }
                         Err(err) => {
@@ -470,12 +449,8 @@ const _: () = {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
                 tracing::trace!("Reading");
 
-                // reading or paused
-                // If we can't build a frame yet, try to read more data and try again.
-
                 let fut = pin!(this.inner.read(&mut state.buffer[state.index..]));
                 match fut.poll(cx) {
-                    // Pending -> implicit reading -> reading or implicit paused -> paused
                     Poll::Ready(Err(err)) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         {
@@ -491,7 +466,7 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::warn!("Got EOF");
 
-                        // if polled again after EOF reached
+                        // If polled again after EOF reached
                         if state.eof {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
                             tracing::warn!("Already EOF");
@@ -517,6 +492,7 @@ const _: () = {
                                 return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                             }
                             None => {
+                                // Avoid framing an empty buffer
                                 #[cfg(not(feature = "decode-enmpty-buffer"))]
                                 if state.total_consumed == state.index {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -530,7 +506,6 @@ const _: () = {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 tracing::trace!("Setting framable");
 
-                                // paused -> framing or reading -> framing or reading -> pausing
                                 state.is_framable = true;
                             }
                         }
