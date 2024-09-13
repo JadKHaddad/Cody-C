@@ -535,12 +535,7 @@ const _: () = {
                         state.index += n;
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        {
-                            tracing::debug!(bytes=%n, "Bytes read");
-                            tracing::trace!("Unsetting EOF");
-                        }
-
-                        state.eof = false;
+                        tracing::debug!(bytes=%n, "Bytes read");
 
                         match state.frame_size {
                             Some(frame_size) => {

@@ -63,13 +63,13 @@ impl core::fmt::Display for AnyDelimiterEncodeError {
 impl std::error::Error for AnyDelimiterEncodeError {}
 
 impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
-    /// Creates a new [`AnyDelimiterCodec`] with the given AnyDelimiter.
+    /// Creates a new [`AnyDelimiterCodec`] with the given `delimiter`.
     #[inline]
     pub const fn new(delimiter: &'a [u8]) -> Self {
         Self { delimiter, seen: 0 }
     }
 
-    /// Returns the AnyDelimiter.
+    /// Returns the delimiter to search for.
     #[inline]
     pub const fn delimiter(&self) -> &'a [u8] {
         self.delimiter

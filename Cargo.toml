@@ -13,7 +13,7 @@ default = [
     "encoder-checks",
     "codec",
     "embedded-io-async",
-    "decode-enmpty-buffer",
+    # "decode-enmpty-buffer",
     # dev for now, TODO remove
     "futures-io",
     "tokio",
