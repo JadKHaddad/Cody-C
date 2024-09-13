@@ -770,6 +770,37 @@ mod test {
         (chunks, 9)
     }
 
+    fn generate_chunks_2() -> Vec<Vec<u8>> {
+        let chunks = std::vec![
+            Vec::from(b"a"),
+            Vec::from(b"aa"),
+            Vec::from(b"aaa"),
+            Vec::from(b"aaaa"),
+            Vec::from(b"aaaaa"),
+            Vec::from(b"aaaaaa"),
+            Vec::from(b"aaaaaaa"),
+            Vec::from(b"aaaaaaaa"),
+            Vec::from(b"aaaaaaaaa"),
+            Vec::from(b"aaaaaaaaaa"),
+            Vec::from(b"aaaaaaaaaaa"),
+            Vec::from(b"aaaaaaaaaaaa"),
+            Vec::from(b"a"),
+            Vec::from(b"aa"),
+            Vec::from(b"aaa"),
+            Vec::from(b"aaaa"),
+            Vec::from(b"aaaaa"),
+            Vec::from(b"aaaaaa"),
+            Vec::from(b"aaaaaaa"),
+            Vec::from(b"aaaaaaaa"),
+            Vec::from(b"aaaaaaaaa"),
+            Vec::from(b"aaaaaaaaaa"),
+            Vec::from(b"aaaaaaaaaaa"),
+            Vec::from(b"aaaaaaaaaaaa"),
+        ];
+
+        chunks
+    }
+
     async fn decode_with_latency<const I: usize, D: Decoder>(
         decoder: D,
         byte_chunks: Vec<Vec<u8>>,
@@ -779,7 +810,7 @@ mod test {
         tokio::spawn(async move {
             for chunk in byte_chunks {
                 write.write_all(&chunk).await.unwrap();
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
             }
         });
 
@@ -854,6 +885,24 @@ mod test {
 
         assert!(items.len() == 1);
         assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
+    }
+
+    #[tokio::test]
+    async fn decode_with_frame_size_aware_decoder_buffer_16_with_bytes_remaining_on_stream() {
+        init_tracing();
+
+        let (mut chunks, decoded_len) = generate_chunks();
+
+        chunks.push(Vec::from(b"\x00\x00\x00\x0fhell"));
+
+        let items = decode_with_latency_with_frame_size_aware_decoder::<16>(chunks).await;
+
+        std::println!("{:?}", items);
+        assert!(items.len() == decoded_len + 1);
+        assert!(matches!(
+            items.last(),
+            Some(Err(Error::BytesRemainingOnStream))
+        ));
     }
 
     #[tokio::test]
@@ -1052,5 +1101,96 @@ mod test {
 
             assert!(item.is_none());
         }
+    }
+
+    struct DecoderChecksThatBufferIsBiggerThanPreviousBuffer {
+        previous_buffer_size: Option<usize>,
+    }
+
+    impl Decoder for DecoderChecksThatBufferIsBiggerThanPreviousBuffer {
+        type Item = ();
+        type Error = ();
+
+        fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            if let Some(previous_buffer_size) = self.previous_buffer_size {
+                if src.len() < previous_buffer_size {
+                    panic!("Buffer is not bigger than previous buffer");
+                }
+            }
+
+            if src.len() >= 4 {
+                self.previous_buffer_size = None;
+                return Ok(MaybeDecoded::Frame(Frame::new(4, ())));
+            }
+
+            self.previous_buffer_size = Some(src.len());
+
+            Ok(MaybeDecoded::None(FrameSize::Unknown))
+        }
+
+        fn decode_eof(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            self.previous_buffer_size = None;
+
+            self.decode(src)
+        }
+    }
+
+    #[tokio::test]
+    async fn decode_with_decoder_checks_buffer_length_buffer_16() {
+        init_tracing();
+
+        let mut chunks = generate_chunks_2();
+
+        let decoder = DecoderChecksThatBufferIsBiggerThanPreviousBuffer {
+            previous_buffer_size: None,
+        };
+
+        // will decode_of with empty buffer
+        let _ = decode_with_latency::<16, _>(decoder, chunks.clone()).await;
+
+        chunks.push(Vec::from(b"a"));
+        let decoder = DecoderChecksThatBufferIsBiggerThanPreviousBuffer {
+            previous_buffer_size: None,
+        };
+
+        // will decode_of with buffer of size 1
+        let _ = decode_with_latency::<16, _>(decoder, chunks).await;
+    }
+
+    struct DecoderChecksThatBufferIsBiggerOrEqualToGivenFrameSize {
+        frame_size: Option<usize>,
+    }
+
+    impl Decoder for DecoderChecksThatBufferIsBiggerOrEqualToGivenFrameSize {
+        type Item = ();
+        type Error = ();
+
+        fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            if let Some(frame_size) = self.frame_size {
+                if src.len() < frame_size {
+                    panic!("Buffer is not bigger or equal to given frame size");
+                }
+            }
+
+            if src.len() >= 4 {
+                self.frame_size = None;
+                return Ok(MaybeDecoded::Frame(Frame::new(4, ())));
+            }
+
+            self.frame_size = Some(4);
+
+            Ok(MaybeDecoded::None(FrameSize::Known(4)))
+        }
+    }
+
+    #[tokio::test]
+    async fn decode_with_decoder_checks_frame_size_buffer_16() {
+        init_tracing();
+
+        let chunks = generate_chunks_2();
+
+        let decoder = DecoderChecksThatBufferIsBiggerOrEqualToGivenFrameSize { frame_size: None };
+
+        let _ = decode_with_latency::<16, _>(decoder, chunks).await;
     }
 }
