@@ -4,14 +4,13 @@ use pin_project_lite::pin_project;
 
 use crate::encode::{async_write::AsyncWrite, encoder::Encoder};
 
+/// An error that can occur while writing a frame.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I, E> {
-    /// The buffer is too small to read a frame.
-    BufferTooSmall,
-    /// An IO error occurred while reading from the underlying source.
+    /// An IO error occurred while writing to the underlying sink.
     IO(I),
-    /// Zero bytes were written to the underlying source.
+    /// Zero bytes were written to the underlying sink.
     WriteZero,
     /// The encoder wrote zero or more bytes than available in the buffer.
     #[cfg(feature = "encoder-checks")]
@@ -27,7 +26,6 @@ where
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::BufferTooSmall => write!(f, "Buffer too small"),
             Self::IO(err) => write!(f, "IO error: {}", err),
             Self::WriteZero => write!(f, "Write zero"),
             #[cfg(feature = "encoder-checks")]
@@ -47,6 +45,7 @@ where
 
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+/// Internal state for writing a frame.
 pub struct WriteFrame<'a> {
     /// The current index in the buffer.
     index: usize,
@@ -59,6 +58,8 @@ pub struct WriteFrame<'a> {
 }
 
 impl<'a> WriteFrame<'a> {
+    /// Creates a new [`WriteFrame`] with the given `buffer`.
+    #[inline]
     pub(crate) fn new(buffer: &'a mut [u8]) -> Self {
         let backpressure_boundary = buffer.len() / 4 * 3;
 
@@ -69,22 +70,32 @@ impl<'a> WriteFrame<'a> {
         }
     }
 
+    /// Returns the current index in the buffer.
+    #[inline]
     pub const fn index(&self) -> usize {
         self.index
     }
 
+    /// Sets the backpressure boundary.
+    #[inline]
     fn set_backpressure_boundary(&mut self, boundary: usize) {
         self.backpressure_boundary = boundary;
     }
 
+    /// Returns the backpressure boundary.
+    #[inline]
     pub const fn backpressure_boundary(&self) -> usize {
         self.backpressure_boundary
     }
 
+    /// Returns a reference to the underlying buffer.
+    #[inline]
     pub const fn buffer(&'a self) -> &'a [u8] {
         self.buffer
     }
 
+    /// Returns the number of bytes available in the buffer.
+    #[inline]
     pub const fn available(&self) -> usize {
         self.buffer.len() - self.index
     }
@@ -102,6 +113,8 @@ pin_project! {
 }
 
 impl<'a, E, W> FramedWrite<'a, E, W> {
+    /// Creates a new [`FramedWrite`] with the given `encoder`, and `buffer`, and the underlying `inner` writer.
+    #[inline]
     pub fn new(inner: W, encoder: E, buffer: &'a mut [u8]) -> Self {
         Self {
             state: WriteFrame::new(buffer),
@@ -110,26 +123,38 @@ impl<'a, E, W> FramedWrite<'a, E, W> {
         }
     }
 
+    /// Returns a reference to the internal state.
+    #[inline]
     pub const fn state(&self) -> &WriteFrame<'a> {
         &self.state
     }
 
+    /// Sets the backpressure boundary.
+    #[inline]
     pub fn set_backpressure_boundary(&mut self, boundary: usize) {
         self.state.set_backpressure_boundary(boundary);
     }
 
+    /// Returns a reference to the encoder.
+    #[inline]
     pub const fn encoder(&self) -> &E {
         &self.encoder
     }
 
+    /// Returns a reference to the underlying `inner` writer.
+    #[inline]
     pub const fn inner(&self) -> &W {
         &self.inner
     }
 
+    /// Returns the encoder consuming the [`FramedWrite`].
+    #[inline]
     pub fn into_encoder(self) -> E {
         self.encoder
     }
 
+    /// Returns the underlying `inner` writer consuming the [`FramedWrite`].
+    #[inline]
     pub fn into_inner(self) -> W {
         self.inner
     }
