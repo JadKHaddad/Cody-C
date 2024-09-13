@@ -964,7 +964,7 @@ mod test {
         let read: &[u8] = b"\x00\x00\x00\x0fhello world\x00\x00\x00\x0f";
 
         let codec = FrameSizeAwareDecoder;
-        let buf = &mut [0_u8; 46];
+        let buf = &mut [0_u8; 64];
 
         let mut framed_read = FramedRead::new(read, codec, buf);
 
@@ -984,5 +984,73 @@ mod test {
         assert!(item.is_none());
     }
 
-    // TODO: test bytes_remaining_on_stream_and_after_error_is_none with a real decoder that does not promiss, like a line decoder
+    struct ErrorCodec;
+
+    impl Decoder for ErrorCodec {
+        type Item = ();
+        type Error = ();
+
+        fn decode(&mut self, _: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
+            Err(())
+        }
+    }
+
+    #[tokio::test]
+    async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
+        init_tracing();
+
+        let read: &[u8] = b"hello world\r\nhello worl";
+
+        let codec = ErrorCodec;
+        let buf = &mut [0_u8; 46];
+
+        let mut framed_read = FramedRead::new(read, codec, buf);
+
+        let mut items = Vec::new();
+
+        while let Some(item) = framed_read.next().await {
+            items.push(item);
+        }
+
+        assert!(matches!(items.last(), Some(Err(Error::Decode(_)))));
+
+        let item = framed_read.next().await;
+
+        assert!(item.is_none());
+    }
+
+    #[cfg(feature = "codec")]
+    /// `codec` feauture is needed to bring [`LinesCodec`](crate::codec::lines::LinesCodec) into scope.
+    mod codec {
+        use super::*;
+        use crate::codec::lines::LinesCodec;
+
+        #[tokio::test]
+        async fn bytes_remaining_on_stream_after_oef_reached_and_after_error_is_none_with_unknown_frame_size(
+        ) {
+            init_tracing();
+
+            let read: &[u8] = b"hello world\r\nhello worl";
+
+            let codec = LinesCodec::<16>::new();
+            let buf = &mut [0_u8; 46];
+
+            let mut framed_read = FramedRead::new(read, codec, buf);
+
+            let mut items = Vec::new();
+
+            while let Some(item) = framed_read.next().await {
+                items.push(item);
+            }
+
+            assert!(matches!(
+                items.last(),
+                Some(Err(Error::BytesRemainingOnStream))
+            ));
+
+            let item = framed_read.next().await;
+
+            assert!(item.is_none());
+        }
+    }
 }
