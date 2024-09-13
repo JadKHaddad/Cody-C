@@ -40,13 +40,13 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-        
+
       - name: Format
         run: cargo fmt -- --check
-      
-      - name: Clippy --no-default-features 
+
+      - name: Clippy --no-default-features
         run: cargo clippy --no-default-features -- -D warnings
-      
+
       - name: Clippy -- default
         run: cargo clippy --features=default -- -D warnings
 
@@ -57,7 +57,7 @@ jobs:
 
       - name: Clippy -- codec
         run: cargo clippy --no-default-features --features=codec -- -D warnings
-      
+
       # Compatibility
 
       - name: Clippy -- std
@@ -74,7 +74,7 @@ jobs:
 
       - name: Clippy -- tokio
         run: cargo clippy --no-default-features --features=tokio -- -D warnings
-      
+
       # Defmt
 
       - name: Clippy -- defmt
@@ -100,12 +100,35 @@ jobs:
       - name: Clippy -- logging tracing
         run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
 
-       
-      - name: Test - codec framed_read freamed_write without (decoder-checks, encoder-checks)
+      # Codec, FramedRead, FramedWrite
+
+      - name: Test - codec framed_read and framed_write without (decoder-checks, encoder-checks, buffer-early-shift)
         run: cargo test --no-default-features --features "codec,tokio"
 
-      - name: Test - framed_read with decoder-checks
-        run: cargo test --no-default-features --features "decoder-checks,tokio"
+      - name: Test - codec framed_read and framed_write with buffer-early-shift without (decoder-checks, encoder-checks)
+        run: cargo test --no-default-features --features "codec,buffer-early-shift"
+
+      # FramedRead
+
+      - name: Test - framed_read with decode-enmpty-buffer without (decoder-checks, buffer-early-shift)
+        run: cargo test --no-default-features --features "codec,decode-enmpty-buffer"
+
+      - name: Test - framed_read with decode-enmpty-buffer buffer-early-shift without decoder-checks
+        run: cargo test --no-default-features --features "codec,decode-enmpty-buffer,buffer-early-shift"
+
+      - name: Test - framed_read with decoder-checks without buffer-early-shift
+        run: cargo test --no-default-features --features "codec,decoder-checks"
+
+      - name: Test - framed_read with decoder-checks and buffer-early-shift
+        run: cargo test --no-default-features --features "codec,decoder-checks,buffer-early-shift"
+
+      - name: Test - framed_read with decoder-checks and decode-enmpty-buffer without buffer-early-shift
+        run: cargo test --no-default-features --features "codec,decoder-checks,decode-enmpty-buffer"
+
+      - name: Test - framed_read with decoder-checks and decode-enmpty-buffer and buffer-early-shift
+        run: cargo test --no-default-features --features "codec,decoder-checks,decode-enmpty-buffer,buffer-early-shift"
+
+      # FramedWrite
 
       - name: Test - freamed_write with encoder-checks
-        run: cargo test --no-default-features --features "encoder-checks,tokio"
+        run: cargo test --no-default-features --features "codec,encoder-checks"

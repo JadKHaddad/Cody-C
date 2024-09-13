@@ -17,7 +17,7 @@ pub mod futures_io;
 #[cfg_attr(docsrs, doc(cfg(feature = "embedded-io-async")))]
 pub mod embedded_io_async;
 
-#[cfg(feature = "tokio")]
+#[cfg(any(test, feature = "tokio"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub mod tokio;
 

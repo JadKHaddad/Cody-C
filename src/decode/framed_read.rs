@@ -11,7 +11,7 @@ pub enum Error<I, D> {
     IO(I),
     /// Bytes remaining on the stream after EOF.
     BytesRemainingOnStream,
-    /// Decoder consumed zero or more bytes than available in the buffer.
+    /// Decoder consumed zero or more bytes than available in the buffer or promissed a frame size and failed to decode it.
     #[cfg(feature = "decoder-checks")]
     BadDecoder,
     /// An error occurred while decoding a frame.
@@ -98,6 +98,10 @@ impl<'a> ReadFrame<'a> {
 
     pub const fn buffer(&'a self) -> &'a [u8] {
         self.buffer
+    }
+
+    pub const fn framable(&self) -> usize {
+        self.index - self.total_consumed
     }
 }
 
@@ -204,19 +208,6 @@ const _: () = {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Framing on EOF");
 
-                        #[cfg(not(feature = "decode-enmpty-buffer"))]
-                        if state.total_consumed == state.index {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::debug!("Buffer empty");
-                                tracing::trace!("Setting unframable");
-                            }
-
-                            state.is_framable = false;
-
-                            return Poll::Ready(None);
-                        }
-
                         // pausing
                         match this
                             .decoder
@@ -233,7 +224,15 @@ const _: () = {
                                 if state.total_consumed > state.index || size == 0 {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
-                                        tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
+                                        if size == 0 {
+                                            tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
+                                        }
+
+                                        if state.total_consumed > state.index {
+                                            let availalbe = state.index - state.total_consumed;
+                                            tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
+                                        }
+
                                         tracing::trace!("Setting error");
                                     }
 
@@ -254,18 +253,16 @@ const _: () = {
                                 // prepare pausing -> paused
                                 state.is_framable = false;
 
-                                if state.index != 0 {
+                                if state.index != state.total_consumed {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
                                         tracing::warn!("Bytes remaining on stream");
                                         tracing::trace!("Setting error");
-
-                                        state.has_errored = true;
-
-                                        return Poll::Ready(Some(Err(
-                                            Error::BytesRemainingOnStream,
-                                        )));
                                     }
+
+                                    state.has_errored = true;
+
+                                    return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                                 }
 
                                 return Poll::Ready(None);
@@ -302,7 +299,15 @@ const _: () = {
                             if state.total_consumed > state.index || size == 0 {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
-                                    tracing::warn!(consumed=%size, index=%state.index, "Bad decoder");
+                                    if size == 0 {
+                                        tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
+                                    }
+
+                                    if state.total_consumed > state.index {
+                                        let availalbe = state.framable();
+                                        tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
+                                    }
+
                                     tracing::trace!("Setting error");
                                 }
 
@@ -326,14 +331,32 @@ const _: () = {
                                 state.is_framable = false;
                             }
 
+                            #[cfg(feature = "decoder-checks")]
+                            {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Unsetting frame size");
+
+                                state.frame_size = None;
+                            }
+
                             // implicit framing -> framing
                             return Poll::Ready(Some(Ok(item)));
                         }
                         Ok(MaybeDecoded::None(frame_size)) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::debug!("No frame decoded");
-                                tracing::trace!("Setting unframable");
+                            tracing::debug!("No frame decoded");
+
+                            #[cfg(feature = "decoder-checks")]
+                            if let Some(_frame_size) = state.frame_size {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                {
+                                    tracing::warn!(frame_size=%_frame_size, "Bad decoder. Decoder promissed to decode a slice of a known frame size in a previous iteration and failed to decode in this iteration");
+                                    tracing::trace!("Setting error");
+                                }
+
+                                state.has_errored = true;
+
+                                return Poll::Ready(Some(Err(Error::BadDecoder)));
                             }
 
                             match frame_size {
@@ -341,11 +364,13 @@ const _: () = {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     tracing::trace!("Unknown frame size");
 
-                                    // or shift the buffer on first unsuccessful frame decode attempt.
-                                    // this will avoid multiple reads at the cost of a memcpy.
+                                    #[cfg(feature = "buffer-early-shift")]
+                                    let shift = state.total_consumed > 0;
 
-                                    // if state.total_consumed > 0 {}
-                                    if state.index >= state.buffer.len() {
+                                    #[cfg(not(feature = "buffer-early-shift"))]
+                                    let shift = state.index >= state.buffer.len();
+
+                                    if shift {
                                         state
                                             .buffer
                                             .copy_within(state.total_consumed..state.index, 0);
@@ -353,12 +378,28 @@ const _: () = {
                                         state.total_consumed = 0;
 
                                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                                        tracing::debug!("Buffer shifted")
+                                        {
+                                            let copied = state.framable();
+                                            tracing::debug!(%copied, "Buffer shifted");
+                                        }
                                     }
                                 }
                                 FrameSize::Known(frame_size) => {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     tracing::trace!(frame_size, "Known frame size");
+
+                                    #[cfg(feature = "decoder-checks")]
+                                    if frame_size == 0 {
+                                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                                        {
+                                            tracing::warn!(%frame_size, "Bad decoder. Decoder promissed a frame size of 0");
+                                            tracing::trace!("Setting error");
+                                        }
+
+                                        state.has_errored = true;
+
+                                        return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                    }
 
                                     if frame_size > state.buffer.len() {
                                         #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -381,12 +422,21 @@ const _: () = {
                                         state.total_consumed = 0;
 
                                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                                        tracing::debug!("Buffer shifted")
+                                        {
+                                            let copied = state.framable();
+                                            tracing::debug!(%copied, "Buffer shifted");
+                                        }
                                     }
+
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!("Setting frame size");
 
                                     state.frame_size = Some(frame_size);
                                 }
                             }
+
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            tracing::trace!("Setting unframable");
 
                             // framing -> reading
                             state.is_framable = false;
@@ -439,33 +489,98 @@ const _: () = {
                     }
                     Poll::Ready(Ok(0)) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!("Got EOF");
+                        tracing::warn!("Got EOF");
 
+                        // if polled again after EOF reached
                         if state.eof {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::debug!("Already at EOF");
+                            tracing::warn!("Already EOF");
 
-                            // We're already at an EOF, and since we've reached this path
-                            // we're also not readable. This implies that we've already finished
-                            // our `decode_eof` handling, so we can simply return `None`.
-                            // implicit paused -> paused
                             return Poll::Ready(None);
                         }
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         tracing::trace!("Setting EOF");
 
-                        // prepare reading -> paused
                         state.eof = true;
+
+                        match state.frame_size {
+                            Some(_) => {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                {
+                                    tracing::warn!("Bytes remaining on stream");
+                                    tracing::trace!("Setting error");
+                                }
+
+                                state.has_errored = true;
+
+                                return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
+                            }
+                            None => {
+                                #[cfg(not(feature = "decode-enmpty-buffer"))]
+                                if state.total_consumed == state.index {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::debug!("Buffer empty");
+                                    }
+
+                                    return Poll::Ready(None);
+                                }
+
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Setting framable");
+
+                                // paused -> framing or reading -> framing or reading -> pausing
+                                state.is_framable = true;
+                            }
+                        }
                     }
                     Poll::Ready(Ok(n)) => {
                         state.index += n;
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!(bytes=%n, "Bytes read");
+                        {
+                            tracing::debug!(bytes=%n, "Bytes read");
+                            tracing::trace!("Unsetting EOF");
+                        }
 
-                        // prepare paused -> framing or noop reading -> framing
                         state.eof = false;
+
+                        match state.frame_size {
+                            Some(frame_size) => {
+                                let frame_size_reached =
+                                    state.index - state.total_consumed >= frame_size;
+
+                                if !frame_size_reached {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
+
+                                    continue;
+                                }
+
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                {
+                                    tracing::trace!(frame_size, "Frame size reached");
+                                    tracing::trace!("Setting framable");
+                                }
+
+                                state.is_framable = true;
+
+                                #[cfg(not(feature = "decoder-checks"))]
+                                {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    tracing::trace!("Unsetting frame size");
+
+                                    state.frame_size = None;
+                                }
+                            }
+                            None => {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Setting framable");
+
+                                state.is_framable = true;
+                            }
+                        }
                     }
                     Poll::Pending => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -474,299 +589,10 @@ const _: () = {
                         return Poll::Pending;
                     }
                 }
-
-                match state.frame_size {
-                    Some(frame_size) => {
-                        let frame_size_reached = state.index - state.total_consumed >= frame_size;
-
-                        if frame_size_reached {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::trace!(frame_size, "Frame size reached");
-                                tracing::trace!("Setting framable");
-                            }
-
-                            // paused -> framing or reading -> framing or reading -> pausing
-                            state.is_framable = true;
-
-                            state.frame_size = None;
-                        }
-
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        if !frame_size_reached {
-                            tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
-                        }
-                    }
-                    None => {
-                        // paused -> framing or reading -> framing or reading -> pausing
-                        state.is_framable = true;
-                    }
-                }
             }
         }
     }
 };
 
-#[cfg(all(test, feature = "tokio"))]
-mod test {
-    extern crate std;
-
-    use std::vec::Vec;
-
-    use futures::StreamExt;
-    use tokio::io::AsyncWriteExt;
-
-    #[cfg(all(
-        feature = "logging",
-        any(feature = "log", feature = "defmt", feature = "tracing")
-    ))]
-    use crate::logging::formatter::Formatter;
-
-    use crate::{
-        decode::{decoder::Decoder, frame::Frame},
-        test::init_tracing,
-        tokio::Compat,
-    };
-
-    use super::*;
-
-    struct DecoderReturningMoreSizeThanAvailable;
-
-    impl Decoder for DecoderReturningMoreSizeThanAvailable {
-        type Item = ();
-        type Error = ();
-
-        fn decode(&mut self, _: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-            Ok(MaybeDecoded::Frame(Frame::new(2, ())))
-        }
-    }
-
-    #[cfg(feature = "decoder-checks")]
-    struct DecoderReturningZeroSize;
-
-    #[cfg(feature = "decoder-checks")]
-    impl Decoder for DecoderReturningZeroSize {
-        type Item = ();
-        type Error = ();
-
-        fn decode(&mut self, _: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-            Ok(MaybeDecoded::Frame(Frame::new(0, ())))
-        }
-    }
-
-    #[tokio::test]
-    #[should_panic]
-    #[cfg(not(feature = "decoder-checks"))]
-    async fn over_size_panic() {
-        init_tracing();
-
-        let read: &[u8] = b"111111111111111";
-        let codec = DecoderReturningMoreSizeThanAvailable;
-        let buf = &mut [0_u8; 4];
-
-        let framed_read = FramedRead::new(read, codec, buf);
-        framed_read.collect::<Vec<_>>().await;
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "decoder-checks")]
-    async fn over_size_bad_decoder() {
-        init_tracing();
-
-        let read: &[u8] = b"111111111111111";
-        let codec = DecoderReturningMoreSizeThanAvailable;
-        let buf = &mut [0_u8; 4];
-
-        let framed_read = FramedRead::new(read, codec, buf);
-        let items: Vec<_> = framed_read.collect().await;
-
-        let last_item = items.last().expect("No items");
-        assert!(matches!(last_item, Err(Error::BadDecoder)));
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "decoder-checks")]
-    async fn zero_size_bad_decoder() {
-        init_tracing();
-
-        let read: &[u8] = b"111111111111111";
-        let codec = DecoderReturningZeroSize;
-        let buf = &mut [0_u8; 4];
-
-        let framed_read = FramedRead::new(read, codec, buf);
-        let items: Vec<_> = framed_read.collect().await;
-
-        let last_item = items.last().expect("No items");
-        assert!(matches!(last_item, Err(Error::BadDecoder)));
-    }
-
-    struct FrameSizeAwareDecoder;
-
-    impl Decoder for FrameSizeAwareDecoder {
-        type Item = ();
-        type Error = ();
-
-        fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let src = Formatter(src);
-                tracing::debug!(?src, "Decoding");
-            }
-
-            if src.len() < 4 {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::debug!("Not enough bytes to read frame size");
-
-                return Ok(MaybeDecoded::None(FrameSize::Unknown));
-            }
-
-            let size = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
-
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!(size, "Frame size");
-
-            if src.len() < size {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::debug!("Not enough bytes to read frame");
-
-                return Ok(MaybeDecoded::None(FrameSize::Known(size)));
-            }
-
-            Ok(MaybeDecoded::Frame(Frame::new(size, ())))
-        }
-    }
-
-    fn generate_chunks() -> (Vec<Vec<u8>>, usize) {
-        let chunks = std::vec![
-            Vec::from(b"\x00\x00\x00\x0f"),
-            Vec::from(b"hello world"),
-            Vec::from(b"\x00\x00\x00\x0f"),
-            Vec::from(b"hello world\x00\x00\x00\x0f"),
-            Vec::from(b"hello world"),
-            Vec::from(b"\x00\x00"),
-            Vec::from(b"\x00\x0fhello"),
-            Vec::from(b" world"),
-            Vec::from(b"\x00\x00\x00\x0fhello world\x00\x00\x00"),
-            Vec::from(b"\x0f"),
-            Vec::from(b"hell"),
-            Vec::from(b"o wo"),
-            Vec::from(b"rld"),
-            Vec::from(b"\x00\x00\x00\x0f"),
-            Vec::from(b"h"),
-            Vec::from(b"e"),
-            Vec::from(b"l"),
-            Vec::from(b"l"),
-            Vec::from(b"o"),
-            Vec::from(b" "),
-            Vec::from(b"w"),
-            Vec::from(b"o"),
-            Vec::from(b"r"),
-            Vec::from(b"l"),
-            Vec::from(b"d\x00\x00\x00\x0f"),
-            Vec::from(b"hello world"),
-            Vec::from(b"\x00\x00\x00\x0f"),
-            Vec::from(b"hello world"),
-        ];
-
-        (chunks, 9)
-    }
-
-    async fn decode_with_frame_size<const I: usize>(
-        byte_chunks: Vec<Vec<u8>>,
-    ) -> Vec<Result<(), Error<std::io::Error, ()>>> {
-        let (read, mut write) = tokio::io::duplex(1024);
-
-        tokio::spawn(async move {
-            for chunk in byte_chunks {
-                write.write_all(&chunk).await.unwrap();
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            }
-        });
-
-        let read = Compat::new(read);
-
-        let codec = FrameSizeAwareDecoder;
-        let buf = &mut [0_u8; I];
-
-        let framed_read = FramedRead::new(read, codec, buf);
-        let byte_chunks: Vec<_> = framed_read.collect().await;
-
-        byte_chunks.into_iter().collect::<Vec<_>>()
-    }
-
-    #[tokio::test]
-    async fn decode_with_frame_size_buffer_64() {
-        init_tracing();
-
-        let (chunks, decoded_len) = generate_chunks();
-
-        let items = decode_with_frame_size::<64>(chunks).await;
-
-        assert!(items.len() == decoded_len);
-        assert!(items.iter().all(Result::is_ok));
-    }
-
-    #[tokio::test]
-    async fn decode_with_frame_size_buffer_32() {
-        init_tracing();
-
-        let (chunks, decoded_len) = generate_chunks();
-
-        let items = decode_with_frame_size::<32>(chunks).await;
-
-        assert!(items.len() == decoded_len);
-        assert!(items.iter().all(Result::is_ok));
-    }
-
-    #[tokio::test]
-    async fn decode_with_frame_size_buffer_16() {
-        init_tracing();
-
-        let (chunks, decoded_len) = generate_chunks();
-
-        let items = decode_with_frame_size::<16>(chunks).await;
-
-        assert!(items.len() == decoded_len);
-        assert!(items.iter().all(Result::is_ok));
-    }
-
-    #[tokio::test]
-    async fn decode_with_frame_size_buffer_8() {
-        init_tracing();
-
-        let (chunks, _) = generate_chunks();
-
-        let items = decode_with_frame_size::<8>(chunks).await;
-
-        assert!(items.len() == 1);
-        assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
-    }
-
-    #[tokio::test]
-    async fn decode_with_frame_large_size() {
-        init_tracing();
-
-        let chunks = std::vec![Vec::from(b"\x00\x00\xff\x00"), std::vec![0; 16]];
-
-        let items = decode_with_frame_size::<64>(chunks).await;
-
-        assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
-    }
-
-    #[tokio::test]
-    async fn decode_with_frame_size_buffer_16_last_frame_large_size() {
-        init_tracing();
-
-        let (mut chunks, chunks_len) = generate_chunks();
-
-        let bad_chunks = std::vec![Vec::from(b"\x00\x00\xff\x00"), std::vec![0; 16]];
-        chunks.extend_from_slice(&bad_chunks);
-
-        let items = decode_with_frame_size::<16>(chunks).await;
-
-        assert!(items.len() == chunks_len + 1);
-        assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
-    }
-
-    // TODO test bytes remaining on stream
-}
+#[cfg(test)]
+mod test;
