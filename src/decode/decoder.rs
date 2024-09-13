@@ -1,5 +1,7 @@
 use super::maybe_decoded::MaybeDecoded;
 
+/// A decoder that decodes a frame from a buffer.
+///
 /// - After returning a [`FrameSize::Unknown`](super::maybe_decoded::FrameSize::Unknown) from [`Decoder::decode`],
 ///   it is garanteed that the next call to [`Decoder::decode`]
 ///   will have a buffer with bigger size than the previous buffer.
