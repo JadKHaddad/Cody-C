@@ -15,14 +15,18 @@ use crate::{
     encode::encoder::Encoder,
 };
 
-/// A codec that spits out bytes as they come in.
+/// A codec that decodes a sequence of bytes as it comes in and encodes a sequence of bytes into a sequence of bytes.
+///
+/// `N` is the maximum number of bytes that a frame can contain.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct BytesCodec<const N: usize>;
 
+/// An error that can occur when encoding a sequence of bytes into a sequence of bytes.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BytesEncodeError {
+    /// The input buffer is too small to fit the encoded bytes.
     InputBufferTooSmall,
 }
 
@@ -38,10 +42,13 @@ impl core::fmt::Display for BytesEncodeError {
 impl std::error::Error for BytesEncodeError {}
 
 impl<const N: usize> BytesCodec<N> {
+    /// Creates a new [`BytesCodec`].
+    #[inline]
     pub const fn new() -> Self {
         Self
     }
 
+    /// Encodes a slice of bytes into a destination buffer.
     pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, BytesEncodeError> {
         let size = item.len();
 

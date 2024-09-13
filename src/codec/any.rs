@@ -13,6 +13,9 @@ use crate::{
     encode::encoder::Encoder,
 };
 
+/// A codec that decodes a sequence of bytes ending with a `delimiter` into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes ending with a `delimiter`.
+///
+/// `N` is the maximum number of bytes that a frame can contain.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AnyDelimiterCodec<'a, const N: usize> {
@@ -25,7 +28,7 @@ pub struct AnyDelimiterCodec<'a, const N: usize> {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnyDelimiterDecodeError {
-    /// The decoded sequesnce of bytes is too large to fit into the return buffer.
+    /// The decoded sequesnce of bytes is too large to fit into the output buffer.
     OutputBufferTooSmall,
 }
 
@@ -40,9 +43,11 @@ impl core::fmt::Display for AnyDelimiterDecodeError {
 #[cfg(feature = "std")]
 impl std::error::Error for AnyDelimiterDecodeError {}
 
+/// An error that can occur when encoding a sequence of bytes into a sequence of bytes ending with a `delimiter`.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnyDelimiterEncodeError {
+    /// The input buffer is too small to fit the encoded sequesnce of bytes.
     InputBufferTooSmall,
 }
 
@@ -76,6 +81,7 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
         self.seen
     }
 
+    /// Encodes a slice of bytes into a destination buffer.
     pub fn encode_slice(
         &self,
         item: &[u8],
