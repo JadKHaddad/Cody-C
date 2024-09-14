@@ -71,6 +71,7 @@ defmt = { version = "0.3.6", optional = true }
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 tokio-test = "0.4.4"
+tokio-util = { version = "0.7.11", features = ["codec"] }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 futures = "0.3.3"
