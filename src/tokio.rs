@@ -9,18 +9,26 @@ use core::borrow::{Borrow, BorrowMut};
 pub struct Compat<R>(R);
 
 impl<R> Compat<R> {
+    /// Creates a new [`Compat`] from a [`Tokio's AsyncRead`](tokio::io::AsyncRead) or [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
+    #[inline]
     pub const fn new(inner: R) -> Self {
         Compat(inner)
     }
 
+    /// Returns a reference to the inner [`Tokio's AsyncRead`](tokio::io::AsyncRead) or [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
+    #[inline]
     pub const fn inner(&self) -> &R {
         &self.0
     }
 
+    /// Returns a mutable reference to the inner [`Tokio's AsyncRead`](tokio::io::AsyncRead) or [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
+    #[inline]
     pub fn inner_mut(&mut self) -> &mut R {
         &mut self.0
     }
 
+    /// Returns the inner [`Tokio's AsyncRead`](tokio::io::AsyncRead) or [`Tokio's AsyncWrite`](tokio::io::AsyncWrite) consuming this [`Compat`].
+    #[inline]
     pub fn into_inner(self) -> R {
         self.0
     }
