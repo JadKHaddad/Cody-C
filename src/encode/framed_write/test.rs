@@ -82,6 +82,7 @@ async fn more_than_available_bad_encoder() {
 }
 
 #[tokio::test]
+#[cfg(not(feature = "encoder-checks"))]
 async fn zero_nothing_written() {
     init_tracing();
 
@@ -103,6 +104,7 @@ async fn zero_nothing_written() {
 
 #[tokio::test]
 #[should_panic]
+#[cfg(not(feature = "encoder-checks"))]
 async fn more_than_available_panic() {
     init_tracing();
 
