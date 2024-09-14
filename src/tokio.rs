@@ -1,6 +1,8 @@
+//! Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) and [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
+
 use core::borrow::{Borrow, BorrowMut};
 
-/// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) ans [`Tokio's AsyncWrite`](tokio::io::AsyncWrite)
+/// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) and [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
 ///
 /// - Converts a [`Tokio's AsyncRead`](tokio::io::AsyncRead) into a [`Crate's AsyncRead`](crate::decode::async_read::AsyncRead).
 /// - Converts a [`Tokio's AsyncWrite`](tokio::io::AsyncWrite) into a [`Crate's AsyncWrite`](crate::encode::async_write::AsyncWrite).
@@ -65,10 +67,11 @@ impl<R> From<R> for Compat<R> {
 }
 
 const _: () = {
-    use crate::decode::async_read::AsyncRead as CrateAsyncRead;
-    use crate::encode::async_write::AsyncWrite as CrateAsyncWrite;
-    use tokio::io::AsyncReadExt;
-    use tokio::io::AsyncWriteExt;
+    use crate::{
+        decode::async_read::AsyncRead as CrateAsyncRead,
+        encode::async_write::AsyncWrite as CrateAsyncWrite,
+    };
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     impl<R> CrateAsyncRead for Compat<R>
     where
