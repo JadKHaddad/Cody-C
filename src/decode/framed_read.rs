@@ -131,7 +131,7 @@ impl<'a> ReadFrame<'a> {
 }
 
 pin_project! {
-    /// A stream of Frames decoded from an underlying readable source.
+    /// A stream of frames decoded from an underlying readable source.
     ///
     /// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::decode::async_read::AsyncRead) source.
     /// - [`Iterator`](core::iter::Iterator) of frames decoded from a [`Read`](crate::decode::read::Read) source. (Not yet implemented)

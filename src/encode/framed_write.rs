@@ -43,9 +43,9 @@ where
 {
 }
 
+/// Internal state for writing a frame.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-/// Internal state for writing a frame.
 pub struct WriteFrame<'a> {
     /// The current index in the buffer.
     index: usize,
@@ -102,6 +102,7 @@ impl<'a> WriteFrame<'a> {
 }
 
 pin_project! {
+    /// A sink that writes frames to an underlying writable sink.
     #[derive(Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct FramedWrite<'a, E, W> {
@@ -316,4 +317,5 @@ const _: () = {
     }
 };
 
-// TODO: test errors on features
+#[cfg(test)]
+mod test;

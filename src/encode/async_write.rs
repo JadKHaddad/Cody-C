@@ -15,3 +15,23 @@ pub trait AsyncWrite {
     /// Shuts down the underlying sink, ensuring that no more data can be written.
     fn shutdown(&mut self) -> impl Future<Output = Result<(), Self::Error>>;
 }
+
+impl AsyncWrite for &mut [u8] {
+    type Error = core::convert::Infallible;
+
+    async fn write<'a>(&'a mut self, buf: &'a [u8]) -> Result<usize, Self::Error> {
+        let amt = core::cmp::min(buf.len(), self.len());
+        let (a, b) = core::mem::take(self).split_at_mut(amt);
+        a.copy_from_slice(&buf[..amt]);
+        *self = b;
+        Ok(amt)
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    async fn shutdown(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
