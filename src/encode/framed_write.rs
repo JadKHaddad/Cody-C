@@ -173,6 +173,17 @@ const _: () = {
     #[cfg(all(feature = "logging", feature = "tracing"))]
     use crate::logging::formatter::Formatter;
 
+    impl<'a, E, W> FramedWrite<'a, E, W> {
+        /// Asserts that the [`FramedWrite`] is a [`Sink`].
+        ///
+        /// Use this function to to make sure that the [`FramedWrite`] is a [`Sink`].
+        pub fn assert_sink<I>(self)
+        where
+            Self: Sink<I>,
+        {
+        }
+    }
+
     impl<'a, E, W, I> Sink<I> for FramedWrite<'a, E, W>
     where
         E: Encoder<I>,
