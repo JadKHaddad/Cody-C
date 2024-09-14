@@ -202,9 +202,9 @@ const _: () = {
     use super::{async_read::AsyncRead, decoder::Decoder, frame::Frame};
 
     impl<'a, D, R> FramedRead<'a, D, R> {
-        /// Asserts that the [`FramedRead`] is a [`Stream`].
+        /// Asserts that the [`FramedRead`] is a [`futures::Stream`].
         ///
-        /// Use this function to make sure that the [`FramedRead`] is a [`Stream`].
+        /// Use this function to make sure that the [`FramedRead`] is a [`futures::Stream`].
         pub fn assert_stream(self)
         where
             D: Decoder,

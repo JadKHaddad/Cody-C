@@ -25,6 +25,7 @@ pub struct AnyDelimiterCodec<'a, const N: usize> {
     seen: usize,
 }
 
+/// An error that can occur when decoding a sequence of bytes ending with a `delimiter` into a sequence of bytes.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnyDelimiterDecodeError {

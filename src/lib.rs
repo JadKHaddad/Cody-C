@@ -5,6 +5,9 @@
 pub mod decode;
 pub mod encode;
 
+pub mod prelude;
+pub use prelude::*;
+
 #[cfg(feature = "codec")]
 #[cfg_attr(docsrs, doc(cfg(feature = "codec")))]
 pub mod codec;
