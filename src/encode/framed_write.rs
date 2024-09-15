@@ -4,9 +4,6 @@ use core::{borrow::Borrow, future::Future};
 
 use pin_project_lite::pin_project;
 
-use crate::encode::encoder::Encoder;
-use crate::io::AsyncWrite;
-
 /// An error that can occur while writing a frame.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -175,6 +172,10 @@ const _: () = {
 
     #[cfg(all(feature = "logging", feature = "tracing"))]
     use crate::logging::formatter::Formatter;
+
+    use crate::io::AsyncWrite;
+
+    use super::encoder::Encoder;
 
     impl<'a, E, W> FramedWrite<'a, E, W> {
         /// Asserts that the [`FramedWrite`] is a [`Sink`].

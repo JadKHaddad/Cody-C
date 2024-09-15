@@ -15,6 +15,7 @@ use crate::{
     decode::{decoder::Decoder, frame::Frame},
     test::init_tracing,
     tokio::Compat,
+    FrameSize, MaybeDecoded,
 };
 
 use super::*;

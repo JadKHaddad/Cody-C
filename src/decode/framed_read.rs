@@ -2,9 +2,6 @@
 
 use pin_project_lite::pin_project;
 
-use crate::decode::maybe_decoded::{FrameSize, MaybeDecoded};
-use crate::io::AsyncRead;
-
 /// An error that can occur while decoding a frame from an [`AsyncRead`](crate::io::AsyncRead) source.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -202,7 +199,13 @@ const _: () = {
     #[cfg(all(feature = "logging", feature = "tracing"))]
     use crate::logging::formatter::Formatter;
 
-    use super::{decoder::Decoder, frame::Frame};
+    use crate::io::AsyncRead;
+
+    use super::{
+        decoder::Decoder,
+        frame::Frame,
+        maybe_decoded::{FrameSize, MaybeDecoded},
+    };
 
     impl<'a, D, R> FramedRead<'a, D, R> {
         /// Asserts that the [`FramedRead`] is a [`futures::Stream`].
