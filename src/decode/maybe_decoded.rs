@@ -1,3 +1,5 @@
+//! Maybe decoded frame definition.
+
 use super::frame::Frame;
 
 /// A frame that may or may not be decoded.

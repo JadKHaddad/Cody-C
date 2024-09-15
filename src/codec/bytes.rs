@@ -1,3 +1,5 @@
+//! A bytes codec for encoding and decoding bytes.
+
 use core::convert::Infallible;
 
 #[cfg(all(

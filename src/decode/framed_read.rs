@@ -1,3 +1,5 @@
+//! Framed read stream. Transforms an [`AsyncRead`](crate::decode::async_read::AsyncRead) into a stream of frames.
+
 use pin_project_lite::pin_project;
 
 use crate::decode::maybe_decoded::{FrameSize, MaybeDecoded};

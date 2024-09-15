@@ -1,9 +1,12 @@
+//! Asynchronous writer trait definition.
+
 use core::future::Future;
 
 /// An asynchronous writer.
 ///
 /// The core `Sink` functionality of this crate is built around this trait.
 pub trait AsyncWrite {
+    /// The type of error that can be returned by [`AsyncWrite`] operations.
     type Error;
 
     /// Writes bytes from the provided buffer into the underlying sink returning how many bytes were written.

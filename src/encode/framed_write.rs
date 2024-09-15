@@ -1,3 +1,5 @@
+//! Framed write sink. Transforms an [`AsyncWrite`](crate::encode::async_write::AsyncWrite) into a sink of frames.
+
 use core::{borrow::Borrow, future::Future};
 
 use pin_project_lite::pin_project;

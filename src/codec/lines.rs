@@ -1,3 +1,5 @@
+//! Lines codecs for encoding and decoding line bytes or line `string`s.
+
 #[cfg(all(
     feature = "logging",
     any(feature = "log", feature = "defmt", feature = "tracing")
@@ -67,7 +69,7 @@ impl<const N: usize> Default for LineBytesCodec<N> {
     }
 }
 
-/// A codec that decodes a sequence of bytes into a line string and encodes a line string into a sequence of bytes.
+/// A codec that decodes a sequence of bytes into a line `string` and encodes a line `string` into a sequence of bytes.
 ///
 /// `N` is the maximum number of bytes that a frame can contain.
 #[derive(Debug, Clone)]
@@ -77,10 +79,10 @@ pub struct LinesCodec<const N: usize> {
     inner: LineBytesCodec<N>,
 }
 
-/// An error that can occur when decoding a sequence of bytes into a line string.
+/// An error that can occur when decoding a sequence of bytes into a line `string`.
 #[derive(Debug)]
 pub enum LinesDecodeError {
-    /// The decoded line string is not valid UTF-8.
+    /// The decoded line `string` is not valid UTF-8.
     Utf8Error(core::str::Utf8Error),
     /// The underlying [`LineBytesCodec`] encountered an error.
     LineBytesDecodeError(LineBytesDecodeError),
@@ -215,7 +217,7 @@ impl<const N: usize> Encoder<heapless::Vec<u8, N>> for LineBytesCodec<N> {
     }
 }
 
-/// An error that can occur when encoding a line string into a sequence of bytes.
+/// An error that can occur when encoding a line `string` into a sequence of bytes.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LinesEncodeError {
@@ -255,7 +257,7 @@ impl<const N: usize> LinesCodec<N> {
         self.inner.seen()
     }
 
-    /// Encodes a line string into a destination buffer.
+    /// Encodes a line `string` into a destination buffer.
     pub fn encode_str(&self, item: &str, dst: &mut [u8]) -> Result<usize, LinesEncodeError> {
         match self.inner.encode_slice(item.as_bytes(), dst) {
             Ok(size) => Ok(size),

@@ -1,3 +1,5 @@
+//! An any delimiter codec for encoding and decoding bytes.
+
 #[cfg(all(
     feature = "logging",
     any(feature = "log", feature = "defmt", feature = "tracing")

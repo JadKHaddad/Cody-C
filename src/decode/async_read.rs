@@ -1,9 +1,12 @@
+//! Asynchronous reader trait definition.
+
 use core::future::Future;
 
 /// An asynchronous reader.
 ///
 /// The core `Stream` functionality of this crate is built around this trait.
 pub trait AsyncRead {
+    /// The type of error that can be returned by [`AsyncRead`] operations.
     type Error;
 
     /// Reads bytes from the underlying source into the provided buffer returning how many bytes were read.
