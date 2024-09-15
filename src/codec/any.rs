@@ -109,7 +109,6 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
     }
 }
 
-// FIXME: this is wrong. Run the tests and see.
 impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
     type Item = heapless::Vec<u8, N>;
     type Error = AnyDelimiterDecodeError;
@@ -118,37 +117,64 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let src = Formatter(src);
-            tracing::debug!(delimiter=?self.delimiter, seen=%self.seen, ?src, "Decoding");
+            let delimiter = Formatter(self.delimiter);
+            tracing::debug!(?delimiter, seen=%self.seen, ?src, "Decoding");
         }
 
-        while self.seen < src.len() {
-            if src[self.seen..].starts_with(self.delimiter) {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    {
-                        let src = Formatter(&src[..self.seen + self.delimiter.len()]);
-                        tracing::debug!(sequence=?src, "Found");
-                    }
+        if src.len() < self.delimiter.len() {
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            tracing::debug!("Not enough bytes to read frame size");
 
-                    let src = Formatter(&src[..self.seen]);
-                    let consuming = self.seen + self.delimiter.len();
-                    tracing::debug!(item=?src, %consuming, "Decoding frame");
-                }
+            return Ok(MaybeDecoded::None(FrameSize::Unknown));
+        }
 
-                let item = heapless::Vec::from_slice(&src[..self.seen])
+        match self.delimiter.last() {
+            None => {
+                let item = heapless::Vec::from_slice(&src[..self.seen + 1])
                     .map_err(|_| AnyDelimiterDecodeError::OutputBufferTooSmall)?;
 
-                let frame = Frame::new(self.seen + self.delimiter.len(), item);
+                let frame = Frame::new(self.seen + 1, item);
 
-                self.seen = 0;
-
-                return Ok(MaybeDecoded::Frame(frame));
+                Ok(MaybeDecoded::Frame(frame))
             }
+            Some(last_byte) => {
+                while self.seen < src.len() {
+                    if src[self.seen] == *last_byte {
+                        let src_delimiter =
+                            &src[self.seen + 1 - self.delimiter.len()..self.seen + 1];
 
-            self.seen += 1;
+                        if src_delimiter == self.delimiter {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                {
+                                    let src = Formatter(&src[..self.seen + 1]);
+                                    tracing::debug!(sequence=?src, "Found");
+                                }
+
+                                let src = Formatter(&src[..self.seen + 1 - self.delimiter.len()]);
+                                let consuming = self.seen + 1;
+                                tracing::debug!(frame=?src, %consuming, "Decoding frame");
+                            }
+
+                            let item = heapless::Vec::from_slice(
+                                &src[..self.seen + 1 - self.delimiter.len()],
+                            )
+                            .map_err(|_| AnyDelimiterDecodeError::OutputBufferTooSmall)?;
+
+                            let frame = Frame::new(self.seen + 1, item);
+
+                            self.seen = 0;
+
+                            return Ok(MaybeDecoded::Frame(frame));
+                        }
+                    }
+
+                    self.seen += 1;
+                }
+
+                Ok(MaybeDecoded::None(FrameSize::Unknown))
+            }
         }
-
-        Ok(MaybeDecoded::None(FrameSize::Unknown))
     }
 }
 
@@ -160,5 +186,5 @@ impl<'a, const N: usize> Encoder<heapless::Vec<u8, N>> for AnyDelimiterCodec<'a,
     }
 }
 
-// #[cfg(test)]
-// mod test;
+#[cfg(test)]
+mod test;

@@ -137,13 +137,13 @@ impl<const N: usize> Decoder for LengthDelimitedCodec<N> {
         }
 
         let frame_buf = &src[4..frame_size];
+
         let item = heapless::Vec::from_slice(frame_buf)
             .map_err(|_| LengthDelimitedDecodeError::OutputBufferTooSmall)?;
 
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
-            let item_size = item.len();
-            tracing::debug!(item=?frame_buf, %item_size, %frame_size, "Decoded frame");
+            tracing::debug!(frame=?frame_buf, consuming=%frame_size, "Decoded frame");
         }
 
         Ok(MaybeDecoded::Frame(Frame::new(frame_size, item)))
