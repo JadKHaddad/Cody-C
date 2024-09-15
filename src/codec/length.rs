@@ -14,7 +14,7 @@ use crate::{
     encode::encoder::Encoder,
 };
 
-/// A codec that decodes a sequence of bytes starting with a length field (4 bytes) into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes starting with a length field (4 bytes).
+/// A codec that decodes and encodes a sequence of bytes starting with a length field (4 bytes).
 ///
 /// `N` is the maximum number of bytes that a frame can contain.
 #[derive(Debug, Clone)]
