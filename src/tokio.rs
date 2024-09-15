@@ -1,11 +1,12 @@
 //! Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) and [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
 
+use crate::io::{AsyncRead as CrateAsyncRead, AsyncWrite as CrateAsyncWrite};
 use core::borrow::{Borrow, BorrowMut};
 
 /// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) and [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
 ///
-/// - Converts a [`Tokio's AsyncRead`](tokio::io::AsyncRead) into a [`Crate's AsyncRead`](crate::decode::async_read::AsyncRead).
-/// - Converts a [`Tokio's AsyncWrite`](tokio::io::AsyncWrite) into a [`Crate's AsyncWrite`](crate::encode::async_write::AsyncWrite).
+/// - Converts a [`Tokio's AsyncRead`](tokio::io::AsyncRead) into a [`Crate's AsyncRead`](crate::io::AsyncRead).
+/// - Converts a [`Tokio's AsyncWrite`](tokio::io::AsyncWrite) into a [`Crate's AsyncWrite`](crate::io::AsyncWrite).
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Compat<R>(R);
@@ -67,10 +68,6 @@ impl<R> From<R> for Compat<R> {
 }
 
 const _: () = {
-    use crate::{
-        decode::async_read::AsyncRead as CrateAsyncRead,
-        encode::async_write::AsyncWrite as CrateAsyncWrite,
-    };
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     impl<R> CrateAsyncRead for Compat<R>

@@ -1,11 +1,12 @@
 //! Compatibility wrapper for [`Futures-io' AsyncRead`](futures::io::AsyncRead) and [`Futures-io' AsyncWrite`](futures::io::AsyncWrite).
 
+use crate::io::{AsyncRead as CrateAsyncRead, AsyncWrite as CrateAsyncWrite};
 use core::borrow::{Borrow, BorrowMut};
 
 /// Compatibility wrapper for [`Futures-io' AsyncRead`](futures::io::AsyncRead) and [`Futures-io' AsyncWrite`](futures::io::AsyncWrite).
 ///
-/// - Converts a [`Futures-io' AsyncRead`](futures::io::AsyncRead) into a [`Crate's AsyncRead`](crate::decode::async_read::AsyncRead).
-/// - Converts a [`Futures-io' AsyncWrite`](futures::io::AsyncWrite) into a [`Crate's AsyncWrite`](crate::encode::async_write::AsyncWrite).
+/// - Converts a [`Futures-io' AsyncRead`](futures::io::AsyncRead) into a [`Crate's AsyncRead`](crate::io::AsyncRead).
+/// - Converts a [`Futures-io' AsyncWrite`](futures::io::AsyncWrite) into a [`Crate's AsyncWrite`](crate::io::AsyncWrite).
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Compat<R>(R);
@@ -67,10 +68,6 @@ impl<R> From<R> for Compat<R> {
 }
 
 const _: () = {
-    use crate::{
-        decode::async_read::AsyncRead as CrateAsyncRead,
-        encode::async_write::AsyncWrite as CrateAsyncWrite,
-    };
     use futures::io::{AsyncReadExt, AsyncWriteExt};
 
     impl<R> CrateAsyncRead for Compat<R>

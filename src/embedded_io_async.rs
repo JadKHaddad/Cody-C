@@ -1,11 +1,12 @@
 //! Compatibility wrapper for [`Embedded-io-async's Read`](embedded_io_async::Read) and [`Embedded-io-async's Write`](embedded_io_async::Write).
 
+use crate::io::{AsyncRead as CrateRead, AsyncWrite as CrateWrite};
 use core::borrow::{Borrow, BorrowMut};
 
 /// Compatibility wrapper for [`Embedded-io-async's Read`](embedded_io_async::Read) and [`Embedded-io-async's Write`](embedded_io_async::Write).
 ///
-/// - Converts an [`Embedded-io-async's Read`](embedded_io_async::Read) into a [`Crate's AsyncRead`](crate::decode::async_read::AsyncRead).
-/// - Converts an [`Embedded-io-async's Write`](embedded_io_async::Write) into a [`Crate's AsyncWrite`](crate::encode::async_write::AsyncWrite).
+/// - Converts an [`Embedded-io-async's Read`](embedded_io_async::Read) into a [`Crate's AsyncRead`](crate::io::AsyncRead).
+/// - Converts an [`Embedded-io-async's Write`](embedded_io_async::Write) into a [`Crate's AsyncWrite`](crate::io::AsyncWrite).
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Compat<R>(R);
@@ -67,9 +68,6 @@ impl<R> From<R> for Compat<R> {
 }
 
 const _: () = {
-    use crate::{
-        decode::async_read::AsyncRead as CrateRead, encode::async_write::AsyncWrite as CrateWrite,
-    };
     use embedded_io_async::ErrorType;
 
     impl<R> CrateRead for Compat<R>

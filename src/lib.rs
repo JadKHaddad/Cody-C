@@ -29,6 +29,8 @@
 pub mod decode;
 pub mod encode;
 
+pub mod io;
+
 pub mod prelude;
 pub use prelude::*;
 

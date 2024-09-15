@@ -1,3 +1,4 @@
 //! Prelude module for the encode module.
 
-pub use super::{async_write::AsyncWrite, encoder::Encoder, framed_write::FramedWrite};
+pub use crate::io::AsyncWrite;
+pub use super::{encoder::Encoder, framed_write::FramedWrite};

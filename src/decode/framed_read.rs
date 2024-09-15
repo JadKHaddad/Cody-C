@@ -1,10 +1,11 @@
-//! Framed read stream. Transforms an [`AsyncRead`](crate::decode::async_read::AsyncRead) into a stream of frames.
+//! Framed read stream. Transforms an [`AsyncRead`](crate::io::AsyncRead) into a stream of frames.
 
 use pin_project_lite::pin_project;
 
 use crate::decode::maybe_decoded::{FrameSize, MaybeDecoded};
+use crate::io::AsyncRead;
 
-/// An error that can occur while decoding a frame from an [`AsyncRead`](crate::decode::async_read::AsyncRead) source.
+/// An error that can occur while decoding a frame from an [`AsyncRead`](crate::io::AsyncRead) source.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error<I, D> {
@@ -135,7 +136,7 @@ impl<'a> ReadFrame<'a> {
 pin_project! {
     /// A stream of frames decoded from an underlying readable source.
     ///
-    /// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::decode::async_read::AsyncRead) source.
+    /// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::io::AsyncRead) source.
     /// - [`Iterator`](core::iter::Iterator) of frames decoded from a [`Read`](crate::decode::read::Read) source. (Not yet implemented)
     #[derive(Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -201,7 +202,7 @@ const _: () = {
     #[cfg(all(feature = "logging", feature = "tracing"))]
     use crate::logging::formatter::Formatter;
 
-    use super::{async_read::AsyncRead, decoder::Decoder, frame::Frame};
+    use super::{decoder::Decoder, frame::Frame};
 
     impl<'a, D, R> FramedRead<'a, D, R> {
         /// Asserts that the [`FramedRead`] is a [`futures::Stream`].
