@@ -119,12 +119,11 @@ async fn from_slow_reader<const I: usize, const O: usize>() {
         heapless::Vec::<_, O>::from_slice(b"iouqw essd").unwrap(),
     ];
 
-    let (read, mut write) = tokio::io::duplex(1024);
+    let (read, mut write) = tokio::io::duplex(1);
 
     tokio::spawn(async move {
         for chunk in chunks_clone {
             write.write_all(&chunk).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     });
 
@@ -145,12 +144,11 @@ async fn from_slow_reader<const I: usize, const O: usize>() {
         .map(|b| heapless::String::from_utf8(b).unwrap())
         .collect::<Vec<_>>();
 
-    let (read, mut write) = tokio::io::duplex(1024);
+    let (read, mut write) = tokio::io::duplex(1);
 
     tokio::spawn(async move {
         for chunk in chunks {
             write.write_all(&chunk).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     });
 
@@ -222,7 +220,7 @@ async fn sink_stream() {
 
     let items_clone = items.clone();
 
-    let (read, write) = tokio::io::duplex(1024);
+    let (read, write) = tokio::io::duplex(24);
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
@@ -231,7 +229,6 @@ async fn sink_stream() {
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
 
         framed_write.close().await.unwrap();
@@ -267,7 +264,7 @@ async fn sink_stream() {
 
     let items_clone = items.clone();
 
-    let (read, write) = tokio::io::duplex(1024);
+    let (read, write) = tokio::io::duplex(24);
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
@@ -276,7 +273,6 @@ async fn sink_stream() {
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
 
         framed_write.close().await.unwrap();

@@ -115,7 +115,7 @@ async fn crate_sink_stream_frame_size_aware() {
 
     let items_clone = items.clone();
 
-    let (read, write) = tokio::io::duplex(1024);
+    let (read, write) = tokio::io::duplex(1);
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
@@ -123,7 +123,6 @@ async fn crate_sink_stream_frame_size_aware() {
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
 
         framed_write.close().await.unwrap();

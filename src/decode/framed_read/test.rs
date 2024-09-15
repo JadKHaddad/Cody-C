@@ -204,16 +204,15 @@ fn generate_chunks_2() -> Vec<Vec<u8>> {
     chunks
 }
 
-async fn decode_with_latency<const I: usize, D: Decoder>(
+async fn decode_with_pending<const I: usize, D: Decoder>(
     decoder: D,
     byte_chunks: Vec<Vec<u8>>,
 ) -> Vec<Result<<D as Decoder>::Item, Error<std::io::Error, <D as Decoder>::Error>>> {
-    let (read, mut write) = tokio::io::duplex(1024);
+    let (read, mut write) = tokio::io::duplex(1);
 
     tokio::spawn(async move {
         for chunk in byte_chunks {
             write.write_all(&chunk).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
         }
     });
 
@@ -226,20 +225,20 @@ async fn decode_with_latency<const I: usize, D: Decoder>(
     framed_read.collect().await
 }
 
-async fn decode_with_latency_with_frame_size_aware_decoder<const I: usize>(
+async fn decode_with_pending_with_frame_size_aware_decoder<const I: usize>(
     byte_chunks: Vec<Vec<u8>>,
 ) -> Vec<Result<(), Error<std::io::Error, ()>>> {
     let codec = FrameSizeAwareDecoder;
 
-    decode_with_latency::<I, _>(codec, byte_chunks).await
+    decode_with_pending::<I, _>(codec, byte_chunks).await
 }
 
-async fn decode_with_latency_with_alawys_returns_known_size_decoder<const I: usize>(
+async fn decode_with_pending_with_alawys_returns_known_size_decoder<const I: usize>(
     byte_chunks: Vec<Vec<u8>>,
 ) -> Vec<Result<(), Error<std::io::Error, ()>>> {
     let codec = DecoderAlwaysReturningKnownFrameSize;
 
-    decode_with_latency::<I, _>(codec, byte_chunks).await
+    decode_with_pending::<I, _>(codec, byte_chunks).await
 }
 
 #[tokio::test]
@@ -248,7 +247,7 @@ async fn decode_with_frame_size_aware_decoder_buffer_64() {
 
     let (chunks, decoded_len) = generate_chunks();
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<64>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<64>(chunks).await;
 
     assert!(items.len() == decoded_len);
     assert!(items.iter().all(Result::is_ok));
@@ -260,7 +259,7 @@ async fn decode_with_frame_size_aware_decoder_buffer_32() {
 
     let (chunks, decoded_len) = generate_chunks();
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<32>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<32>(chunks).await;
 
     assert!(items.len() == decoded_len);
     assert!(items.iter().all(Result::is_ok));
@@ -272,7 +271,7 @@ async fn decode_with_frame_size_aware_decoder_buffer_16() {
 
     let (chunks, decoded_len) = generate_chunks();
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<16>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<16>(chunks).await;
 
     assert!(items.len() == decoded_len);
     assert!(items.iter().all(Result::is_ok));
@@ -284,7 +283,7 @@ async fn decode_with_frame_size_aware_decoder_buffer_8() {
 
     let (chunks, _) = generate_chunks();
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<8>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<8>(chunks).await;
 
     assert!(items.len() == 1);
     assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
@@ -298,7 +297,7 @@ async fn decode_with_frame_size_aware_decoder_buffer_16_with_bytes_remaining_on_
 
     chunks.push(Vec::from(b"\x00\x00\x00\x0fhell"));
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<16>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<16>(chunks).await;
 
     std::println!("{:?}", items);
     assert!(items.len() == decoded_len + 1);
@@ -314,7 +313,7 @@ async fn decode_with_frame_large_size() {
 
     let chunks = std::vec![Vec::from(b"\x00\x00\xff\x00"), std::vec![0; 16]];
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<64>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<64>(chunks).await;
 
     assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
 }
@@ -328,7 +327,7 @@ async fn decode_with_frame_size_aware_decoder_buffer_16_last_frame_large_size() 
     let bad_chunks = std::vec![Vec::from(b"\x00\x00\xff\x00"), std::vec![0; 16]];
     chunks.extend_from_slice(&bad_chunks);
 
-    let items = decode_with_latency_with_frame_size_aware_decoder::<16>(chunks).await;
+    let items = decode_with_pending_with_frame_size_aware_decoder::<16>(chunks).await;
 
     assert!(items.len() == chunks_len + 1);
     assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
@@ -341,7 +340,7 @@ async fn decode_with_alawys_returns_known_size_decoder_bad_decoder() {
 
     let (chunks, _) = generate_chunks();
 
-    let items = decode_with_latency_with_alawys_returns_known_size_decoder::<64>(chunks).await;
+    let items = decode_with_pending_with_alawys_returns_known_size_decoder::<64>(chunks).await;
 
     assert!(items.len() == 1);
     assert!(matches!(items.last(), Some(Err(Error::BadDecoder))));
@@ -355,7 +354,7 @@ async fn decoder_always_returns_known_size_decoder_buffer_too_small() {
 
     let (chunks, _) = generate_chunks();
 
-    let items = decode_with_latency_with_alawys_returns_known_size_decoder::<64>(chunks).await;
+    let items = decode_with_pending_with_alawys_returns_known_size_decoder::<64>(chunks).await;
 
     assert!(items.len() == 1);
     assert!(matches!(items.last(), Some(Err(Error::BufferTooSmall))));
@@ -381,7 +380,7 @@ async fn bytes_remainning_on_stream() {
 
     let codec = DecoderAlwaysReturnsUnknonwnFrameSize;
 
-    let items = decode_with_latency::<64, _>(codec, chunks).await;
+    let items = decode_with_pending::<64, _>(codec, chunks).await;
 
     assert!(items.len() == 1);
     assert!(matches!(
@@ -549,7 +548,7 @@ async fn decode_with_decoder_checks_buffer_length_buffer_16() {
     };
 
     // will decode_of with empty buffer
-    let _ = decode_with_latency::<16, _>(decoder, chunks.clone()).await;
+    let _ = decode_with_pending::<16, _>(decoder, chunks.clone()).await;
 
     chunks.push(Vec::from(b"a"));
     let decoder = DecoderChecksThatBufferIsBiggerThanPreviousBuffer {
@@ -557,7 +556,7 @@ async fn decode_with_decoder_checks_buffer_length_buffer_16() {
     };
 
     // will decode_of with buffer of size 1
-    let _ = decode_with_latency::<16, _>(decoder, chunks).await;
+    let _ = decode_with_pending::<16, _>(decoder, chunks).await;
 }
 
 struct DecoderChecksThatBufferIsBiggerOrEqualToGivenFrameSize {
@@ -594,5 +593,5 @@ async fn decode_with_decoder_checks_frame_size_buffer_16() {
 
     let decoder = DecoderChecksThatBufferIsBiggerOrEqualToGivenFrameSize { frame_size: None };
 
-    let _ = decode_with_latency::<16, _>(decoder, chunks).await;
+    let _ = decode_with_pending::<16, _>(decoder, chunks).await;
 }

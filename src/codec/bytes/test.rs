@@ -41,12 +41,11 @@ async fn from_slow_reader<const I: usize, const O: usize>() {
 
     let chunks_copy = chunks.clone();
 
-    let (read, mut write) = tokio::io::duplex(1024);
+    let (read, mut write) = tokio::io::duplex(1);
 
     tokio::spawn(async move {
         for chunk in chunks {
             write.write_all(&chunk).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
     });
 
@@ -143,7 +142,7 @@ async fn sink_stream() {
 
     let chunks_clone = chunks.clone();
 
-    let (read, write) = tokio::io::duplex(1024);
+    let (read, write) = tokio::io::duplex(24);
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
@@ -151,7 +150,6 @@ async fn sink_stream() {
 
         for item in chunks_clone {
             framed_write.send(item).await.unwrap();
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
 
         framed_write.close().await.unwrap();
