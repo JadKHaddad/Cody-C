@@ -1,6 +1,24 @@
 //! Framed read stream. Transforms an [`AsyncRead`](crate::io::AsyncRead) into a stream of frames.
 
+use core::{
+    borrow::BorrowMut,
+    pin::{pin, Pin},
+    task::{Context, Poll},
+};
+
+use futures::{Future, Stream};
 use pin_project_lite::pin_project;
+
+#[cfg(all(feature = "logging", feature = "tracing"))]
+use crate::logging::formatter::Formatter;
+
+use crate::io::AsyncRead;
+
+use super::{
+    decoder::Decoder,
+    frame::Frame,
+    maybe_decoded::{FrameSize, MaybeDecoded},
+};
 
 /// An error that can occur while decoding a frame from an [`AsyncRead`](crate::io::AsyncRead) source.
 #[derive(Debug)]
@@ -187,148 +205,55 @@ impl<'a, D, R> FramedRead<'a, D, R> {
     }
 }
 
-const _: () = {
-    use core::{
-        borrow::BorrowMut,
-        pin::{pin, Pin},
-        task::{Context, Poll},
-    };
-
-    use futures::{Future, Stream};
-
-    #[cfg(all(feature = "logging", feature = "tracing"))]
-    use crate::logging::formatter::Formatter;
-
-    use crate::io::AsyncRead;
-
-    use super::{
-        decoder::Decoder,
-        frame::Frame,
-        maybe_decoded::{FrameSize, MaybeDecoded},
-    };
-
-    impl<'a, D, R> FramedRead<'a, D, R> {
-        /// Asserts that the [`FramedRead`] is a [`futures::Stream`].
-        ///
-        /// Use this function to make sure that the [`FramedRead`] is a [`futures::Stream`].
-        pub fn assert_stream(self)
-        where
-            D: Decoder,
-            R: AsyncRead,
-            Self: Stream<Item = Result<D::Item, Error<R::Error, D::Error>>>,
-        {
-        }
-    }
-
-    impl<'a, D, R> Stream for FramedRead<'a, D, R>
+impl<'a, D, R> FramedRead<'a, D, R> {
+    /// Asserts that the [`FramedRead`] is a [`futures::Stream`].
+    ///
+    /// Use this function to make sure that the [`FramedRead`] is a [`futures::Stream`].
+    pub fn assert_stream(self)
     where
         D: Decoder,
-        R: AsyncRead + Unpin,
+        R: AsyncRead,
+        Self: Stream<Item = Result<D::Item, Error<R::Error, D::Error>>>,
     {
-        type Item = Result<D::Item, Error<R::Error, D::Error>>;
+    }
+}
 
-        fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            let mut this = self.project();
-            let state = this.state.borrow_mut();
+impl<'a, D, R> Stream for FramedRead<'a, D, R>
+where
+    D: Decoder,
+    R: AsyncRead + Unpin,
+{
+    type Item = Result<D::Item, Error<R::Error, D::Error>>;
 
-            loop {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut this = self.project();
+        let state = this.state.borrow_mut();
+
+        loop {
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            tracing::trace!("Entering loop");
+
+            if state.has_errored {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::trace!("Entering loop");
+                tracing::trace!("Error already");
 
-                if state.has_errored {
+                return Poll::Ready(None);
+            }
+
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            {
+                let buf = Formatter(&state.buffer[state.total_consumed..state.index]);
+                tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
+            }
+
+            if state.is_framable {
+                if state.eof {
                     #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::trace!("Error already");
-
-                    return Poll::Ready(None);
-                }
-
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    let buf = Formatter(&state.buffer[state.total_consumed..state.index]);
-                    tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
-                }
-
-                if state.is_framable {
-                    if state.eof {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::trace!("Framing on EOF");
-
-                        match this
-                            .decoder
-                            .decode_eof(&mut state.buffer[state.total_consumed..state.index])
-                        {
-                            Ok(MaybeDecoded::Frame(Frame { size, item })) => {
-                                state.total_consumed += size;
-
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
-
-                                #[cfg(feature = "decoder-checks")]
-                                if state.total_consumed > state.index || size == 0 {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        if size == 0 {
-                                            tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
-                                        }
-
-                                        if state.total_consumed > state.index {
-                                            let availalbe = state.index - state.total_consumed;
-                                            tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
-                                        }
-
-                                        tracing::trace!("Setting error");
-                                    }
-
-                                    state.has_errored = true;
-
-                                    return Poll::Ready(Some(Err(Error::BadDecoder)));
-                                }
-
-                                return Poll::Ready(Some(Ok(item)));
-                            }
-                            Ok(MaybeDecoded::None(_)) => {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::debug!("No frame decoded");
-                                    tracing::trace!("Setting unframable");
-                                }
-
-                                state.is_framable = false;
-
-                                if state.index != state.total_consumed {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::warn!("Bytes remaining on stream");
-                                        tracing::trace!("Setting error");
-                                    }
-
-                                    state.has_errored = true;
-
-                                    return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
-                                }
-
-                                return Poll::Ready(None);
-                            }
-                            Err(err) => {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::warn!("Failed to decode frame");
-                                    tracing::trace!("Setting error");
-                                }
-
-                                state.has_errored = true;
-
-                                return Poll::Ready(Some(Err(Error::Decode(err))));
-                            }
-                        }
-                    }
-
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::trace!("Framing");
+                    tracing::trace!("Framing on EOF");
 
                     match this
                         .decoder
-                        .decode(&mut state.buffer[state.total_consumed..state.index])
+                        .decode_eof(&mut state.buffer[state.total_consumed..state.index])
                     {
                         Ok(MaybeDecoded::Frame(Frame { size, item })) => {
                             state.total_consumed += size;
@@ -345,7 +270,7 @@ const _: () = {
                                     }
 
                                     if state.total_consumed > state.index {
-                                        let availalbe = state.framable();
+                                        let availalbe = state.index - state.total_consumed;
                                         tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
                                     }
 
@@ -357,128 +282,30 @@ const _: () = {
                                 return Poll::Ready(Some(Err(Error::BadDecoder)));
                             }
 
-                            // Avoid framing an empty buffer
-                            #[cfg(not(feature = "decode-enmpty-buffer"))]
-                            if state.total_consumed == state.index {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::debug!("Resetting empty buffer");
-                                    tracing::trace!("Setting unframable");
-                                }
-
-                                state.total_consumed = 0;
-                                state.index = 0;
-
-                                state.is_framable = false;
-                            }
-
-                            #[cfg(feature = "decoder-checks")]
-                            {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Unsetting frame size");
-
-                                state.frame_size = None;
-                            }
-
                             return Poll::Ready(Some(Ok(item)));
                         }
-                        Ok(MaybeDecoded::None(frame_size)) => {
+                        Ok(MaybeDecoded::None(_)) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::debug!("No frame decoded");
+                            {
+                                tracing::debug!("No frame decoded");
+                                tracing::trace!("Setting unframable");
+                            }
 
-                            #[cfg(feature = "decoder-checks")]
-                            if let Some(_frame_size) = state.frame_size {
+                            state.is_framable = false;
+
+                            if state.index != state.total_consumed {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
-                                    tracing::warn!(frame_size=%_frame_size, "Bad decoder. Decoder promissed to decode a slice of a known frame size in a previous iteration and failed to decode in this iteration");
+                                    tracing::warn!("Bytes remaining on stream");
                                     tracing::trace!("Setting error");
                                 }
 
                                 state.has_errored = true;
 
-                                return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                             }
 
-                            match frame_size {
-                                FrameSize::Unknown => {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!("Unknown frame size");
-
-                                    #[cfg(feature = "buffer-early-shift")]
-                                    let shift = state.total_consumed > 0;
-
-                                    #[cfg(not(feature = "buffer-early-shift"))]
-                                    let shift = state.index >= state.buffer.len();
-
-                                    if shift {
-                                        state
-                                            .buffer
-                                            .copy_within(state.total_consumed..state.index, 0);
-                                        state.index -= state.total_consumed;
-                                        state.total_consumed = 0;
-
-                                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                                        {
-                                            let copied = state.framable();
-                                            tracing::debug!(%copied, "Buffer shifted");
-                                        }
-                                    }
-                                }
-                                FrameSize::Known(frame_size) => {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!(frame_size, "Known frame size");
-
-                                    #[cfg(feature = "decoder-checks")]
-                                    if frame_size == 0 {
-                                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                                        {
-                                            tracing::warn!(%frame_size, "Bad decoder. Decoder promissed a frame size of 0");
-                                            tracing::trace!("Setting error");
-                                        }
-
-                                        state.has_errored = true;
-
-                                        return Poll::Ready(Some(Err(Error::BadDecoder)));
-                                    }
-
-                                    if frame_size > state.buffer.len() {
-                                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                                        {
-                                            tracing::warn!(frame_size, buffer=%state.buffer.len(), "Frame size too large");
-                                            tracing::trace!("Setting error");
-                                        }
-
-                                        state.has_errored = true;
-
-                                        return Poll::Ready(Some(Err(Error::BufferTooSmall)));
-                                    }
-
-                                    // Check if we need to shift the buffer. Does the frame fit between the total_consumed and buffer.len()?
-                                    if state.buffer.len() - state.total_consumed < frame_size {
-                                        state
-                                            .buffer
-                                            .copy_within(state.total_consumed..state.index, 0);
-                                        state.index -= state.total_consumed;
-                                        state.total_consumed = 0;
-
-                                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                                        {
-                                            let copied = state.framable();
-                                            tracing::debug!(%copied, "Buffer shifted");
-                                        }
-                                    }
-
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!("Setting frame size");
-
-                                    state.frame_size = Some(frame_size);
-                                }
-                            }
-
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("Setting unframable");
-
-                            state.is_framable = false;
+                            return Poll::Ready(None);
                         }
                         Err(err) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
@@ -494,135 +321,305 @@ const _: () = {
                     }
                 }
 
-                if state.index >= state.buffer.len() {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    {
-                        tracing::warn!("Buffer too small");
-                        tracing::trace!("Setting error");
-                    }
-
-                    state.has_errored = true;
-
-                    return Poll::Ready(Some(Err(Error::BufferTooSmall)));
-                }
-
                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::trace!("Reading");
+                tracing::trace!("Framing");
 
-                let fut = pin!(this.inner.read(&mut state.buffer[state.index..]));
-                match fut.poll(cx) {
-                    Poll::Ready(Err(err)) => {
+                match this
+                    .decoder
+                    .decode(&mut state.buffer[state.total_consumed..state.index])
+                {
+                    Ok(MaybeDecoded::Frame(Frame { size, item })) => {
+                        state.total_consumed += size;
+
+                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                        tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
+
+                        #[cfg(feature = "decoder-checks")]
+                        if state.total_consumed > state.index || size == 0 {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                if size == 0 {
+                                    tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
+                                }
+
+                                if state.total_consumed > state.index {
+                                    let availalbe = state.framable();
+                                    tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
+                                }
+
+                                tracing::trace!("Setting error");
+                            }
+
+                            state.has_errored = true;
+
+                            return Poll::Ready(Some(Err(Error::BadDecoder)));
+                        }
+
+                        // Avoid framing an empty buffer
+                        #[cfg(not(feature = "decode-enmpty-buffer"))]
+                        if state.total_consumed == state.index {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::debug!("Resetting empty buffer");
+                                tracing::trace!("Setting unframable");
+                            }
+
+                            state.total_consumed = 0;
+                            state.index = 0;
+
+                            state.is_framable = false;
+                        }
+
+                        #[cfg(feature = "decoder-checks")]
+                        {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            tracing::trace!("Unsetting frame size");
+
+                            state.frame_size = None;
+                        }
+
+                        return Poll::Ready(Some(Ok(item)));
+                    }
+                    Ok(MaybeDecoded::None(frame_size)) => {
+                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                        tracing::debug!("No frame decoded");
+
+                        #[cfg(feature = "decoder-checks")]
+                        if let Some(_frame_size) = state.frame_size {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::warn!(frame_size=%_frame_size, "Bad decoder. Decoder promissed to decode a slice of a known frame size in a previous iteration and failed to decode in this iteration");
+                                tracing::trace!("Setting error");
+                            }
+
+                            state.has_errored = true;
+
+                            return Poll::Ready(Some(Err(Error::BadDecoder)));
+                        }
+
+                        match frame_size {
+                            FrameSize::Unknown => {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Unknown frame size");
+
+                                #[cfg(feature = "buffer-early-shift")]
+                                let shift = state.total_consumed > 0;
+
+                                #[cfg(not(feature = "buffer-early-shift"))]
+                                let shift = state.index >= state.buffer.len();
+
+                                if shift {
+                                    state
+                                        .buffer
+                                        .copy_within(state.total_consumed..state.index, 0);
+                                    state.index -= state.total_consumed;
+                                    state.total_consumed = 0;
+
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        let copied = state.framable();
+                                        tracing::debug!(%copied, "Buffer shifted");
+                                    }
+                                }
+                            }
+                            FrameSize::Known(frame_size) => {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!(frame_size, "Known frame size");
+
+                                #[cfg(feature = "decoder-checks")]
+                                if frame_size == 0 {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::warn!(%frame_size, "Bad decoder. Decoder promissed a frame size of 0");
+                                        tracing::trace!("Setting error");
+                                    }
+
+                                    state.has_errored = true;
+
+                                    return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                }
+
+                                if frame_size > state.buffer.len() {
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        tracing::warn!(frame_size, buffer=%state.buffer.len(), "Frame size too large");
+                                        tracing::trace!("Setting error");
+                                    }
+
+                                    state.has_errored = true;
+
+                                    return Poll::Ready(Some(Err(Error::BufferTooSmall)));
+                                }
+
+                                // Check if we need to shift the buffer. Does the frame fit between the total_consumed and buffer.len()?
+                                if state.buffer.len() - state.total_consumed < frame_size {
+                                    state
+                                        .buffer
+                                        .copy_within(state.total_consumed..state.index, 0);
+                                    state.index -= state.total_consumed;
+                                    state.total_consumed = 0;
+
+                                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                                    {
+                                        let copied = state.framable();
+                                        tracing::debug!(%copied, "Buffer shifted");
+                                    }
+                                }
+
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Setting frame size");
+
+                                state.frame_size = Some(frame_size);
+                            }
+                        }
+
+                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                        tracing::trace!("Setting unframable");
+
+                        state.is_framable = false;
+                    }
+                    Err(err) => {
                         #[cfg(all(feature = "logging", feature = "tracing"))]
                         {
-                            tracing::warn!("Failed to read");
+                            tracing::warn!("Failed to decode frame");
                             tracing::trace!("Setting error");
                         }
 
                         state.has_errored = true;
 
-                        return Poll::Ready(Some(Err(Error::IO(err))));
+                        return Poll::Ready(Some(Err(Error::Decode(err))));
                     }
-                    Poll::Ready(Ok(0)) => {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::warn!("Got EOF");
+                }
+            }
 
-                        // If polled again after EOF reached
-                        if state.eof {
+            if state.index >= state.buffer.len() {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                {
+                    tracing::warn!("Buffer too small");
+                    tracing::trace!("Setting error");
+                }
+
+                state.has_errored = true;
+
+                return Poll::Ready(Some(Err(Error::BufferTooSmall)));
+            }
+
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            tracing::trace!("Reading");
+
+            let fut = pin!(this.inner.read(&mut state.buffer[state.index..]));
+            match fut.poll(cx) {
+                Poll::Ready(Err(err)) => {
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    {
+                        tracing::warn!("Failed to read");
+                        tracing::trace!("Setting error");
+                    }
+
+                    state.has_errored = true;
+
+                    return Poll::Ready(Some(Err(Error::IO(err))));
+                }
+                Poll::Ready(Ok(0)) => {
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    tracing::warn!("Got EOF");
+
+                    // If polled again after EOF reached
+                    if state.eof {
+                        #[cfg(all(feature = "logging", feature = "tracing"))]
+                        tracing::warn!("Already EOF");
+
+                        return Poll::Ready(None);
+                    }
+
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    tracing::trace!("Setting EOF");
+
+                    state.eof = true;
+
+                    match state.frame_size {
+                        Some(_) => {
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::warn!("Already EOF");
+                            {
+                                tracing::warn!("Bytes remaining on stream");
+                                tracing::trace!("Setting error");
+                            }
 
-                            return Poll::Ready(None);
+                            state.has_errored = true;
+
+                            return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
                         }
-
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::trace!("Setting EOF");
-
-                        state.eof = true;
-
-                        match state.frame_size {
-                            Some(_) => {
+                        None => {
+                            // Avoid framing an empty buffer
+                            #[cfg(not(feature = "decode-enmpty-buffer"))]
+                            if state.total_consumed == state.index {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
-                                    tracing::warn!("Bytes remaining on stream");
-                                    tracing::trace!("Setting error");
+                                    tracing::debug!("Buffer empty");
                                 }
 
-                                state.has_errored = true;
-
-                                return Poll::Ready(Some(Err(Error::BytesRemainingOnStream)));
+                                return Poll::Ready(None);
                             }
-                            None => {
-                                // Avoid framing an empty buffer
-                                #[cfg(not(feature = "decode-enmpty-buffer"))]
-                                if state.total_consumed == state.index {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::debug!("Buffer empty");
-                                    }
 
-                                    return Poll::Ready(None);
-                                }
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            tracing::trace!("Setting framable");
 
+                            state.is_framable = true;
+                        }
+                    }
+                }
+                Poll::Ready(Ok(n)) => {
+                    state.index += n;
+
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    tracing::debug!(bytes=%n, "Bytes read");
+
+                    match state.frame_size {
+                        Some(frame_size) => {
+                            let frame_size_reached =
+                                state.index - state.total_consumed >= frame_size;
+
+                            if !frame_size_reached {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
+
+                                continue;
+                            }
+
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            {
+                                tracing::trace!(frame_size, "Frame size reached");
                                 tracing::trace!("Setting framable");
+                            }
 
-                                state.is_framable = true;
+                            state.is_framable = true;
+
+                            #[cfg(not(feature = "decoder-checks"))]
+                            {
+                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                tracing::trace!("Unsetting frame size");
+
+                                state.frame_size = None;
                             }
                         }
-                    }
-                    Poll::Ready(Ok(n)) => {
-                        state.index += n;
+                        None => {
+                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            tracing::trace!("Setting framable");
 
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!(bytes=%n, "Bytes read");
-
-                        match state.frame_size {
-                            Some(frame_size) => {
-                                let frame_size_reached =
-                                    state.index - state.total_consumed >= frame_size;
-
-                                if !frame_size_reached {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
-
-                                    continue;
-                                }
-
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::trace!(frame_size, "Frame size reached");
-                                    tracing::trace!("Setting framable");
-                                }
-
-                                state.is_framable = true;
-
-                                #[cfg(not(feature = "decoder-checks"))]
-                                {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    tracing::trace!("Unsetting frame size");
-
-                                    state.frame_size = None;
-                                }
-                            }
-                            None => {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Setting framable");
-
-                                state.is_framable = true;
-                            }
+                            state.is_framable = true;
                         }
                     }
-                    Poll::Pending => {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::trace!("Pending");
+                }
+                Poll::Pending => {
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    tracing::trace!("Pending");
 
-                        return Poll::Pending;
-                    }
+                    return Poll::Pending;
                 }
             }
         }
     }
-};
+}
 
 #[cfg(test)]
 mod test;

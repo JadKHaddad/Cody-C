@@ -60,7 +60,7 @@ futures = "0.3.3"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]
-name = "async_read_lines"
+name = "tokio"
 harness = false
 
 [package.metadata.docs.rs]

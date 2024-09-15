@@ -1,6 +1,20 @@
 //! Framed write sink. Transforms an [`AsyncWrite`](crate::io::AsyncWrite) into a sink of frames.
 
-use core::{borrow::Borrow, future::Future};
+use core::{
+    borrow::{Borrow, BorrowMut},
+    future::Future,
+    pin::{pin, Pin},
+    task::{ready, Context, Poll},
+};
+
+use futures::Sink;
+
+#[cfg(all(feature = "logging", feature = "tracing"))]
+use crate::logging::formatter::Formatter;
+
+use crate::io::AsyncWrite;
+
+use super::encoder::Encoder;
 
 use pin_project_lite::pin_project;
 
@@ -55,6 +69,7 @@ pub struct WriteFrame<'a> {
     backpressure_boundary: usize,
     /// The underlying buffer to read into.
     buffer: &'a mut [u8],
+    total_written: usize,
 }
 
 impl<'a> WriteFrame<'a> {
@@ -67,6 +82,7 @@ impl<'a> WriteFrame<'a> {
             index: 0,
             backpressure_boundary,
             buffer,
+            total_written: 0,
         }
     }
 
@@ -161,176 +177,154 @@ impl<'a, E, W> FramedWrite<'a, E, W> {
     }
 }
 
-const _: () = {
-    use core::{
-        borrow::BorrowMut,
-        pin::{pin, Pin},
-        task::{ready, Context, Poll},
-    };
+impl<'a, E, W> FramedWrite<'a, E, W> {
+    /// Asserts that the [`FramedWrite`] is a [`Sink`].
+    ///
+    /// Use this function to to make sure that the [`FramedWrite`] is a [`Sink`].
+    pub fn assert_sink<I>(self)
+    where
+        Self: Sink<I>,
+    {
+    }
+}
 
-    use futures::Sink;
+impl<'a, E, W, I> Sink<I> for FramedWrite<'a, E, W>
+where
+    E: Encoder<I>,
+    W: AsyncWrite + Unpin,
+{
+    type Error = Error<W::Error, E::Error>;
 
-    #[cfg(all(feature = "logging", feature = "tracing"))]
-    use crate::logging::formatter::Formatter;
+    fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        let state = self.state.borrow();
 
-    use crate::io::AsyncWrite;
-
-    use super::encoder::Encoder;
-
-    impl<'a, E, W> FramedWrite<'a, E, W> {
-        /// Asserts that the [`FramedWrite`] is a [`Sink`].
-        ///
-        /// Use this function to to make sure that the [`FramedWrite`] is a [`Sink`].
-        pub fn assert_sink<I>(self)
-        where
-            Self: Sink<I>,
+        #[cfg(all(feature = "logging", feature = "tracing"))]
         {
+            tracing::trace!("Poll ready");
+            tracing::debug!(index=%state.index, available=%state.available(), boundary=%state.backpressure_boundary);
         }
+
+        if state.index >= state.backpressure_boundary {
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            tracing::debug!("Backpressure");
+
+            return self.as_mut().poll_flush(cx);
+        }
+
+        Poll::Ready(Ok(()))
     }
 
-    impl<'a, E, W, I> Sink<I> for FramedWrite<'a, E, W>
-    where
-        E: Encoder<I>,
-        W: AsyncWrite + Unpin,
-    {
-        type Error = Error<W::Error, E::Error>;
+    fn start_send(self: Pin<&mut Self>, item: I) -> Result<(), Self::Error> {
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        tracing::trace!("Start send");
 
-        fn poll_ready(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            let state = self.state.borrow();
+        let this = self.project();
+        let state = this.state.borrow_mut();
 
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                tracing::trace!("Poll ready");
-                tracing::debug!(index=%state.index, available=%state.available(), boundary=%state.backpressure_boundary);
-            }
-
-            if state.index >= state.backpressure_boundary {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::debug!("Backpressure");
-
-                return self.as_mut().poll_flush(cx);
-            }
-
-            Poll::Ready(Ok(()))
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let buf = Formatter(&state.buffer[0..state.index]);
+            tracing::debug!(index=%state.index, available=%state.available(), ?buf);
         }
 
-        fn start_send(self: Pin<&mut Self>, item: I) -> Result<(), Self::Error> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Start send");
-
-            let this = self.project();
-            let state = this.state.borrow_mut();
-
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let buf = Formatter(&state.buffer[0..state.index]);
-                tracing::debug!(index=%state.index, available=%state.available(), ?buf);
-            }
-
-            match this.encoder.encode(item, &mut state.buffer[state.index..]) {
-                Ok(size) => {
-                    #[cfg(feature = "encoder-checks")]
-                    if size == 0 || size > state.available() {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        {
-                            tracing::warn!(size=%size, index=%state.index, available=%state.available(), "Bad encoder");
-                        }
-
-                        return Err(Error::BadEncoder);
-                    }
-
-                    state.index += size;
-
+        match this.encoder.encode(item, &mut state.buffer[state.index..]) {
+            Ok(size) => {
+                #[cfg(feature = "encoder-checks")]
+                if size == 0 || size > state.available() {
                     #[cfg(all(feature = "logging", feature = "tracing"))]
                     {
-                        let buf = Formatter(&state.buffer[0..state.index]);
-                        tracing::debug!(size=%size, index=%state.index, ?buf, "Frame encoded");
+                        tracing::warn!(size=%size, index=%state.index, available=%state.available(), "Bad encoder");
                     }
 
-                    Ok(())
+                    return Err(Error::BadEncoder);
                 }
-                Err(err) => {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::warn!("Failed to encode frame");
 
-                    Err(Error::Encode(err))
-                }
-            }
-        }
+                state.index += size;
 
-        fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Poll flush");
-
-            let mut this = self.project();
-            let state = this.state.borrow_mut();
-
-            let mut total_written = 0;
-
-            while total_written < state.index {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
                 {
-                    let buf = Formatter(&state.buffer[total_written..state.index]);
-                    tracing::debug!(%total_written, index=%state.index, ?buf, "Writing");
+                    let buf = Formatter(&state.buffer[0..state.index]);
+                    tracing::debug!(size=%size, index=%state.index, ?buf, "Frame encoded");
                 }
 
-                let fut = pin!(this.inner.write(&state.buffer[total_written..state.index]));
-
-                match ready!(fut.poll(cx)) {
-                    Ok(0) => return Poll::Ready(Err(Error::WriteZero)),
-                    Ok(n) => {
-                        total_written += n;
-
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!(bytes=%n, %total_written, index=%state.index, "Wrote");
-                    }
-                    Err(err) => return Poll::Ready(Err(Error::IO(err))),
-                }
+                Ok(())
             }
+            Err(err) => {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                tracing::warn!("Failed to encode frame");
 
-            state.index = 0;
-
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Flushing");
-
-            let fut = pin!(this.inner.flush());
-            match ready!(fut.poll(cx)) {
-                Ok(()) => Poll::Ready(Ok(())),
-                Err(err) => {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::warn!("Failed to flush");
-
-                    Poll::Ready(Err(Error::IO(err)))
-                }
-            }
-        }
-
-        fn poll_close(
-            mut self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Poll close");
-
-            ready!(self.as_mut().poll_flush(cx))?;
-            let mut this = self.project();
-
-            let fut = pin!(this.inner.shutdown());
-            match ready!(fut.poll(cx)) {
-                Ok(()) => Poll::Ready(Ok(())),
-                Err(err) => {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::warn!("Failed to close");
-
-                    Poll::Ready(Err(Error::IO(err)))
-                }
+                Err(Error::Encode(err))
             }
         }
     }
-};
+
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        tracing::trace!("Poll flush");
+
+        let mut this = self.project();
+        let state = this.state.borrow_mut();
+
+        while state.total_written < state.index {
+            #[cfg(all(feature = "logging", feature = "tracing"))]
+            {
+                let buf = Formatter(&state.buffer[state.total_written..state.index]);
+                tracing::debug!(total_written=%state.total_written, index=%state.index, ?buf, "Writing");
+            }
+
+            let fut = pin!(this
+                .inner
+                .write(&state.buffer[state.total_written..state.index]));
+
+            match ready!(fut.poll(cx)) {
+                Ok(0) => return Poll::Ready(Err(Error::WriteZero)),
+                Ok(n) => {
+                    state.total_written += n;
+
+                    #[cfg(all(feature = "logging", feature = "tracing"))]
+                    tracing::debug!(bytes=%n, total_written=%state.total_written, index=%state.index, "Wrote");
+                }
+                Err(err) => return Poll::Ready(Err(Error::IO(err))),
+            }
+        }
+
+        state.total_written = 0;
+        state.index = 0;
+
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        tracing::trace!("Flushing");
+
+        let fut = pin!(this.inner.flush());
+        match ready!(fut.poll(cx)) {
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(err) => {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                tracing::warn!("Failed to flush");
+
+                Poll::Ready(Err(Error::IO(err)))
+            }
+        }
+    }
+
+    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        tracing::trace!("Poll close");
+
+        ready!(self.as_mut().poll_flush(cx))?;
+        let mut this = self.project();
+
+        let fut = pin!(this.inner.shutdown());
+        match ready!(fut.poll(cx)) {
+            Ok(()) => Poll::Ready(Ok(())),
+            Err(err) => {
+                #[cfg(all(feature = "logging", feature = "tracing"))]
+                tracing::warn!("Failed to close");
+
+                Poll::Ready(Err(Error::IO(err)))
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod test;

@@ -27,12 +27,15 @@ pub struct LengthDelimitedCodec<const N: usize>;
 pub enum LengthDelimitedDecodeError {
     /// The decoded sequesnce of bytes is too large to fit into the output buffer.
     OutputBufferTooSmall,
+    /// The received frame size is smaller than the minimum frame size (4 bytes).
+    InvalidFrameSize,
 }
 
 impl core::fmt::Display for LengthDelimitedDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
+            Self::InvalidFrameSize => write!(f, "Invalid frame size"),
         }
     }
 }
@@ -78,7 +81,7 @@ impl<const N: usize> LengthDelimitedCodec<N> {
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let item = Formatter(item);
-            tracing::debug!(frame=?item, %item_size, %frame_size, available=%dst.len(), "Encoding Frame");
+            tracing::debug!(?item, %item_size, %frame_size, available=%dst.len(), "Encoding Frame");
         }
 
         if dst.len() < frame_size {
@@ -87,7 +90,6 @@ impl<const N: usize> LengthDelimitedCodec<N> {
 
         let frame_size_bytes = (frame_size as u32).to_be_bytes();
         dst[..4].copy_from_slice(&frame_size_bytes);
-
         dst[4..frame_size].copy_from_slice(item);
 
         Ok(frame_size)
@@ -130,8 +132,19 @@ impl<const N: usize> Decoder for LengthDelimitedCodec<N> {
             return Ok(MaybeDecoded::None(FrameSize::Known(frame_size)));
         }
 
-        let item = heapless::Vec::from_slice(&src[4..frame_size])
+        if frame_size < 4 {
+            return Err(LengthDelimitedDecodeError::InvalidFrameSize);
+        }
+
+        let frame_buf = &src[4..frame_size];
+        let item = heapless::Vec::from_slice(frame_buf)
             .map_err(|_| LengthDelimitedDecodeError::OutputBufferTooSmall)?;
+
+        #[cfg(all(feature = "logging", feature = "tracing"))]
+        {
+            let item_size = item.len();
+            tracing::debug!(item=?frame_buf, %item_size, %frame_size, "Decoded frame");
+        }
 
         Ok(MaybeDecoded::Frame(Frame::new(frame_size, item)))
     }
