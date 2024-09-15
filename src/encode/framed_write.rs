@@ -69,6 +69,7 @@ pub struct WriteFrame<'a> {
     backpressure_boundary: usize,
     /// The underlying buffer to read into.
     buffer: &'a mut [u8],
+    /// The total number of bytes written to the underlying sink after the last flush.
     total_written: usize,
 }
 
@@ -108,6 +109,12 @@ impl<'a> WriteFrame<'a> {
     #[inline]
     pub const fn buffer(&'a self) -> &'a [u8] {
         self.buffer
+    }
+
+    /// Returns the total number of bytes written to the underlying sink after the last flush.
+    #[inline]
+    pub const fn total_written(&self) -> usize {
+        self.total_written
     }
 
     /// Returns the number of bytes available in the buffer.
