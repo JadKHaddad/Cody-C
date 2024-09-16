@@ -78,6 +78,11 @@ impl<const N: usize> LengthDelimitedCodec<N> {
         let item_size = item.len();
         let frame_size = item_size + 4;
 
+        // TODO: make this a feature or a configuration option
+        // if item_size > u32::MAX as usize {
+        //     return Err(LengthDelimitedEncodeError::MessageTooBig);
+        // }
+
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
             let item = Formatter(item);
