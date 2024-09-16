@@ -51,6 +51,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "tokio"
 harness = false
+required-features = ["tokio"]
+# cargo bench --features tokio
 
 [package.metadata.docs.rs]
 all-features = true
