@@ -49,12 +49,17 @@ impl std::error::Error for LengthDelimitedDecodeError {}
 pub enum LengthDelimitedEncodeError {
     /// The input buffer is too small to fit the encoded sequesnce of bytes.
     InputBufferTooSmall,
+    /// The message is too big to fit into the frame.
+    ///
+    /// Message size is limited to `u32::MAX` bytes.
+    MessageTooBig,
 }
 
 impl core::fmt::Display for LengthDelimitedEncodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InputBufferTooSmall => write!(f, "Input buffer too small"),
+            Self::MessageTooBig => write!(f, "Message too big"),
         }
     }
 }
@@ -78,10 +83,9 @@ impl<const N: usize> LengthDelimitedCodec<N> {
         let item_size = item.len();
         let frame_size = item_size + 4;
 
-        // TODO: make this a feature or a configuration option
-        // if item_size > u32::MAX as usize {
-        //     return Err(LengthDelimitedEncodeError::MessageTooBig);
-        // }
+        if item_size > u32::MAX as usize {
+            return Err(LengthDelimitedEncodeError::MessageTooBig);
+        }
 
         #[cfg(all(feature = "logging", feature = "tracing"))]
         {
