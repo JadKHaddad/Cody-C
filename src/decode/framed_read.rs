@@ -646,9 +646,7 @@ where
                 return None;
             }
 
-            let result = this.read_next().await;
-
-            Some((result, this))
+            Some((this.read_next().await, this))
         })
     }
 
@@ -661,8 +659,9 @@ where
 
             #[cfg(all(feature = "logging", feature = "tracing"))]
             {
-                let buf = Formatter(&state.buffer[state.total_consumed..state.index]);
-                tracing::debug!(total_consumed=%state.total_consumed, index=%state.index, ?buf);
+                let buf =
+                    Formatter(&self.state.buffer[self.state.total_consumed..self.state.index]);
+                tracing::debug!(total_consumed=%self.state.total_consumed, index=%self.state.index, ?buf);
             }
 
             if self.state.is_framable {
@@ -677,19 +676,20 @@ where
                             self.state.total_consumed += size;
 
                             #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
+                            tracing::debug!(consumed=%size, total_consumed=%self.state.total_consumed, "Frame decoded");
 
                             #[cfg(feature = "decoder-checks")]
-                            if state.total_consumed > state.index || size == 0 {
+                            if self.state.total_consumed > self.state.index || size == 0 {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
                                 {
                                     if size == 0 {
                                         tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
                                     }
 
-                                    if state.total_consumed > state.index {
-                                        let availalbe = state.index - state.total_consumed;
-                                        tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
+                                    if self.state.total_consumed > self.state.index {
+                                        let availalbe =
+                                            self.state.index - self.state.total_consumed;
+                                        tracing::warn!(consumed=%size, index=%self.state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
                                     }
 
                                     tracing::trace!("Setting error");
@@ -750,7 +750,7 @@ where
                         self.state.total_consumed += size;
 
                         #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!(consumed=%size, total_consumed=%state.total_consumed, "Frame decoded");
+                        tracing::debug!(consumed=%size, total_consumed=%self.state.total_consumed, "Frame decoded");
 
                         #[cfg(feature = "decoder-checks")]
                         if state.total_consumed > state.index || size == 0 {
@@ -836,7 +836,7 @@ where
 
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
-                                        let copied = state.framable();
+                                        let copied = self.state.framable();
                                         tracing::debug!(%copied, "Buffer shifted");
                                     }
                                 }
@@ -861,7 +861,7 @@ where
                                 if frame_size > self.state.buffer.len() {
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
-                                        tracing::warn!(frame_size, buffer=%state.buffer.len(), "Frame size too large");
+                                        tracing::warn!(frame_size, buffer=%self.state.buffer.len(), "Frame size too large");
                                         tracing::trace!("Setting error");
                                     }
 
@@ -882,7 +882,7 @@ where
 
                                     #[cfg(all(feature = "logging", feature = "tracing"))]
                                     {
-                                        let copied = state.framable();
+                                        let copied = self.state.framable();
                                         tracing::debug!(%copied, "Buffer shifted");
                                     }
                                 }
@@ -1005,7 +1005,7 @@ where
 
                             if !frame_size_reached {
                                 #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!(frame_size, index=%state.index, "Frame size not reached");
+                                tracing::trace!(frame_size, index=%self.state.index, "Frame size not reached");
 
                                 continue;
                             }
