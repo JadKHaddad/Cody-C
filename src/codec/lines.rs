@@ -1,8 +1,5 @@
 //! Lines codecs for encoding and decoding line bytes or line `string`s.
 
-#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
-use crate::logging::formatter::Formatter;
-
 use crate::{
     decode::{
         decoder::Decoder,
@@ -138,12 +135,6 @@ impl<const N: usize> LineBytesCodec<N> {
     pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, LineBytesEncodeError> {
         let size = item.len() + 2;
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let item = Formatter(item);
-            tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
-        }
-
         if dst.len() < size {
             return Err(LineBytesEncodeError::InputBufferTooSmall);
         }
@@ -160,34 +151,14 @@ impl<const N: usize> Decoder for LineBytesCodec<N> {
     type Error = LineBytesDecodeError;
 
     fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(src);
-            tracing::debug!(seen=%self.seen, ?src, "Decoding");
-        }
-
         while self.seen < src.len() {
             if src[self.seen] == b'\n' {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    let line_bytes_with_n = &src[..self.seen + 1];
-                    let src = Formatter(line_bytes_with_n);
-                    tracing::debug!(line=?src, "Found");
-                }
-
                 let line_bytes_without_n = &src[..self.seen];
 
                 let line_bytes = match line_bytes_without_n.last() {
                     Some(b'\r') => &line_bytes_without_n[..self.seen - 1],
                     _ => line_bytes_without_n,
                 };
-
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    let src = Formatter(line_bytes);
-                    let consuming = self.seen + 1;
-                    tracing::debug!(frame=?src, %consuming, "Decoding frame");
-                }
 
                 let item = heapless::Vec::from_slice(line_bytes)
                     .map_err(|_| LineBytesDecodeError::OutputBufferTooSmall)?;

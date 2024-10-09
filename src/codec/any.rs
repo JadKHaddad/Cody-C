@@ -1,8 +1,5 @@
 //! An any delimiter codec for encoding and decoding bytes.
 
-#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
-use crate::logging::formatter::Formatter;
-
 use crate::{
     decode::{
         decoder::Decoder,
@@ -89,12 +86,6 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
     ) -> Result<usize, AnyDelimiterEncodeError> {
         let size = item.len() + self.delimiter.len();
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let item = Formatter(item);
-            tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
-        }
-
         if dst.len() < size {
             return Err(AnyDelimiterEncodeError::InputBufferTooSmall);
         }
@@ -111,17 +102,7 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
     type Error = AnyDelimiterDecodeError;
 
     fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(src);
-            let delimiter = Formatter(self.delimiter);
-            tracing::debug!(?delimiter, seen=%self.seen, ?src, "Decoding");
-        }
-
         if src.len() < self.delimiter.len() {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame size");
-
             return Ok(MaybeDecoded::None(FrameSize::Unknown));
         }
 
@@ -141,18 +122,6 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
                             &src[self.seen + 1 - self.delimiter.len()..self.seen + 1];
 
                         if src_delimiter == self.delimiter {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                {
-                                    let src = Formatter(&src[..self.seen + 1]);
-                                    tracing::debug!(sequence=?src, "Found");
-                                }
-
-                                let src = Formatter(&src[..self.seen + 1 - self.delimiter.len()]);
-                                let consuming = self.seen + 1;
-                                tracing::debug!(frame=?src, %consuming, "Decoding frame");
-                            }
-
                             let item = heapless::Vec::from_slice(
                                 &src[..self.seen + 1 - self.delimiter.len()],
                             )

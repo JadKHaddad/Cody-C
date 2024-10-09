@@ -5,12 +5,6 @@ use std::vec::Vec;
 use futures::StreamExt;
 use tokio::io::AsyncWriteExt;
 
-#[cfg(all(
-    feature = "logging",
-    any(feature = "log", feature = "defmt", feature = "tracing")
-))]
-use crate::logging::formatter::Formatter;
-
 use crate::{
     decode::{decoder::Decoder, frame::Frame},
     test::init_tracing,
@@ -98,28 +92,13 @@ impl Decoder for FrameSizeAwareDecoder {
     type Error = ();
 
     fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(src);
-            tracing::debug!(?src, "Decoding");
-        }
-
         if src.len() < 4 {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame size");
-
             return Ok(MaybeDecoded::None(FrameSize::Unknown));
         }
 
         let size = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::debug!(size, "Frame size");
-
         if src.len() < size {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame");
-
             return Ok(MaybeDecoded::None(FrameSize::Known(size)));
         }
 
