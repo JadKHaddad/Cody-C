@@ -9,7 +9,7 @@ use core::{
 
 use futures::Sink;
 
-#[cfg(all(feature = "logging", feature = "tracing"))]
+#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
 use crate::logging::formatter::Formatter;
 
 use crate::io::AsyncWrite;

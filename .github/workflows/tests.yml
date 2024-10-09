@@ -82,23 +82,20 @@ jobs:
 
       # Logging
 
-      - name: Clippy -- logging
-        run: cargo clippy --no-default-features --features=logging -- -D warnings
+      - name: Clippy -- pretty-hex-fmt
+        run: cargo clippy --no-default-features --features="pretty-hex-fmt" -- -D warnings
 
-      - name: Clippy -- logging pretty-hex-fmt
-        run: cargo clippy --no-default-features --features="logging,pretty-hex-fmt" -- -D warnings
+      - name: Clippy -- char-fmt
+        run: cargo clippy --no-default-features --features="char-fmt" -- -D warnings
 
-      - name: Clippy -- logging char-fmt
-        run: cargo clippy --no-default-features --features="logging,char-fmt" -- -D warnings
+      - name: Clippy -- log
+        run: cargo clippy --no-default-features --features="log" -- -D warnings
 
-      - name: Clippy -- logging log
-        run: cargo clippy --no-default-features --features="logging,log" -- -D warnings
+      - name: Clippy -- defmt
+        run: cargo clippy --no-default-features --features="defmt" -- -D warnings
 
-      - name: Clippy -- logging defmt
-        run: cargo clippy --no-default-features --features="logging,defmt" -- -D warnings
-
-      - name: Clippy -- logging tracing
-        run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
+      - name: Clippy -- tracing
+        run: cargo clippy --no-default-features --features="tracing" -- -D warnings
 
       # Codec, FramedRead, FramedWrite
 

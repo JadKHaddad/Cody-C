@@ -1,15 +1,14 @@
 //! Framed read stream. Transforms an [`AsyncRead`](crate::io::AsyncRead) into a stream of frames.
 
 use core::{
-    borrow::BorrowMut,
-    pin::{pin, Pin},
+    pin::Pin,
     task::{Context, Poll},
 };
 
-use futures::{Future, Stream};
+use futures::Stream;
 use pin_project_lite::pin_project;
 
-#[cfg(all(feature = "logging", feature = "tracing"))]
+#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
 use crate::logging::formatter::Formatter;
 
 use crate::io::AsyncRead;

@@ -1,9 +1,6 @@
 //! Lines codecs for encoding and decoding line bytes or line `string`s.
 
-#[cfg(all(
-    feature = "logging",
-    any(feature = "log", feature = "defmt", feature = "tracing")
-))]
+#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
 use crate::logging::formatter::Formatter;
 
 use crate::{

@@ -50,16 +50,10 @@ pub mod embedded_io_async;
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
 pub mod tokio;
 
-#[cfg(all(
-    feature = "logging",
-    any(feature = "log", feature = "defmt", feature = "tracing")
-))]
+#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
 #[cfg_attr(
     docsrs,
-    doc(cfg(all(
-        feature = "logging",
-        any(feature = "log", feature = "defmt", feature = "tracing")
-    )))
+    doc(cfg(any(feature = "log", feature = "defmt", feature = "tracing")))
 )]
 pub mod logging;
 

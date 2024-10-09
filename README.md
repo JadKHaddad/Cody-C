@@ -14,9 +14,8 @@ A simple and fast codec for encoding and decoding data in `no_std` environments.
 - `embedded-io-async`: Enables [`embedded_io_async::Read`](https://docs.rs/embedded-io-async/latest/embedded_io_async/trait.Read.html) and [`embedded_io_async::Write`](https://docs.rs/embedded-io-async/latest/embedded_io_async/trait.Write.html) compatibility.
 - `embedded-io`: Enables [`embedded_io::Read`](https://docs.rs/embedded-io/latest/embedded_io/trait.Read.html) and [`embedded_io::Write`](https://docs.rs/embedded-io/latest/embedded_io/trait.Write.html) compatibility. `(not Implemented yet)`.
 - `tokio`: Enables [`tokio::io::AsyncRead`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncRead.html) and [`tokio::io::AsyncWrite`](https://docs.rs/tokio/latest/tokio/io/trait.AsyncWrite.html) compatibility.
-- `logging`: Enables debug logging.
-- `pretty-hex-fmt`: Enables pretty hex formatting for logging. Only available with `logging` feature.
-- `char-fmt`: Enables char formatting for logging. Only available with `logging` feature.
-- `log`: Enables logging with [`log`](https://docs.rs/log/latest/log/). `(not Implemented yet)`. Only available with `logging` feature.
-- `defmt`: Enables logging with [`defmt`](https://docs.rs/defmt/latest/defmt/). `(not Implemented yet)`. Only available with `logging` feature. Implements [`defmt::Format`](https://docs.rs/defmt/latest/defmt/trait.Format.html) for crate types.
-- `tracing`: Enables logging with [`tracing`](https://docs.rs/tracing/latest/tracing/). Only available with `logging` feature.
+- `pretty-hex-fmt`: Enables pretty hex formatting for logging.
+- `char-fmt`: Enables char formatting for logging.
+- `log`: Enables logging with [`log`](https://docs.rs/log/latest/log/). `(not Implemented yet)`.
+- `defmt`: Enables logging with [`defmt`](https://docs.rs/defmt/latest/defmt/). `(not Implemented yet)`. Implements [`defmt::Format`](https://docs.rs/defmt/latest/defmt/trait.Format.html) for crate types.
+- `tracing`: Enables logging with [`tracing`](https://docs.rs/tracing/latest/tracing/).
