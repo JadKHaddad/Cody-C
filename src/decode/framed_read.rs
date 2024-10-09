@@ -147,19 +147,16 @@ impl<'a> ReadFrame<'a> {
     }
 }
 
-pin_project! {
-    /// A stream of frames decoded from an underlying readable source.
-    ///
-    /// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::io::AsyncRead) source.
-    /// - [`Iterator`](core::iter::Iterator) of frames decoded from a [`Read`](crate::decode::read::Read) source. (Not yet implemented)
-    #[derive(Debug)]
-    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-    pub struct FramedRead<'a, D, R> {
-        state: ReadFrame<'a>,
-        decoder: D,
-        #[pin]
-        inner: R,
-    }
+/// A stream of frames decoded from an underlying readable source.
+///
+/// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::io::AsyncRead) source.
+/// - [`Iterator`](core::iter::Iterator) of frames decoded from a [`Read`](crate::decode::read::Read) source. (Not yet implemented)
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct FramedRead<'a, D, R> {
+    state: ReadFrame<'a>,
+    decoder: D,
+    inner: R,
 }
 
 impl<'a, D, R> FramedRead<'a, D, R> {
@@ -235,9 +232,9 @@ mod test;
 impl<'a, D, R> FramedRead<'a, D, R>
 where
     D: Decoder,
-    R: AsyncRead + Unpin,
+    R: AsyncRead,
 {
-    /// a method
+    /// TODO!
     pub fn stream(
         &'a mut self,
     ) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + '_ {
@@ -253,9 +250,8 @@ where
         })
     }
 
-    // type Item = Result<D::Item, Error<R::Error, D::Error>>;
-
-    async fn read_next(&mut self) -> Result<D::Item, Error<R::Error, D::Error>> {
+    /// TODO!
+    pub async fn read_next(&mut self) -> Result<D::Item, Error<R::Error, D::Error>> {
         loop {
             #[cfg(all(feature = "logging", feature = "tracing"))]
             tracing::trace!("Entering loop");
