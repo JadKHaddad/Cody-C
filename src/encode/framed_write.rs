@@ -9,7 +9,10 @@ use core::{
 
 use futures::Sink;
 
-use crate::io::AsyncWrite;
+#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
+use crate::logging::formatter::Formatter;
+
+use crate::{debug, io::AsyncWrite, trace, warn};
 
 use super::encoder::Encoder;
 
@@ -202,15 +205,16 @@ where
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let state = self.state.borrow();
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            tracing::trace!("Poll ready");
-            tracing::debug!(index=%state.index, available=%state.available(), boundary=%state.backpressure_boundary);
-        }
+        trace!("Poll ready");
+        debug!(
+            "index: {}, available: {}, boundary: {}",
+            state.index,
+            state.available(),
+            state.backpressure_boundary
+        );
 
         if state.index >= state.backpressure_boundary {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Backpressure");
+            debug!("Backpressure");
 
             return self.as_mut().poll_flush(cx);
         }
@@ -219,43 +223,45 @@ where
     }
 
     fn start_send(self: Pin<&mut Self>, item: I) -> Result<(), Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::trace!("Start send");
+        trace!("Start send");
 
         let this = self.project();
         let state = this.state.borrow_mut();
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let buf = Formatter(&state.buffer[0..state.index]);
-            tracing::debug!(index=%state.index, available=%state.available(), ?buf);
-        }
+        debug!(
+            "index: {}, available: {}, buffer: {:?}",
+            state.index,
+            state.available(),
+            Formatter(&state.buffer[0..state.index])
+        );
 
         match this.encoder.encode(item, &mut state.buffer[state.index..]) {
             Ok(size) => {
                 #[cfg(feature = "encoder-checks")]
                 if size == 0 || size > state.available() {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    {
-                        tracing::warn!(size=%size, index=%state.index, available=%state.available(), "Bad encoder");
-                    }
+                    warn!(
+                        "Bad encoder. size: {}, index: {}, available: {}",
+                        size,
+                        state.index,
+                        state.available()
+                    );
 
                     return Err(Error::BadEncoder);
                 }
 
                 state.index += size;
 
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    let buf = Formatter(&state.buffer[0..state.index]);
-                    tracing::debug!(size=%size, index=%state.index, ?buf, "Frame encoded");
-                }
+                debug!(
+                    "Frame encoded. size: {}, index: {}, buffer: {:?}",
+                    size,
+                    state.index,
+                    Formatter(&state.buffer[0..state.index])
+                );
 
                 Ok(())
             }
             Err(err) => {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::warn!("Failed to encode frame");
+                warn!("Failed to encode frame");
 
                 Err(Error::Encode(err))
             }
@@ -263,18 +269,18 @@ where
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::trace!("Poll flush");
+        trace!("Poll flush");
 
         let mut this = self.project();
         let state = this.state.borrow_mut();
 
         while state.total_written < state.index {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let buf = Formatter(&state.buffer[state.total_written..state.index]);
-                tracing::debug!(total_written=%state.total_written, index=%state.index, ?buf, "Writing");
-            }
+            debug!(
+                "Writing. total_written: {}, index: {}, buffer: {:?}",
+                state.total_written,
+                state.index,
+                Formatter(&state.buffer[state.total_written..state.index])
+            );
 
             let fut = pin!(this
                 .inner
@@ -285,8 +291,10 @@ where
                 Ok(n) => {
                     state.total_written += n;
 
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::debug!(bytes=%n, total_written=%state.total_written, index=%state.index, "Wrote");
+                    debug!(
+                        "Wrote. bytes: {}, total_written: {}, index: {}",
+                        n, state.total_written, state.index
+                    );
                 }
                 Err(err) => return Poll::Ready(Err(Error::IO(err))),
             }
@@ -295,15 +303,13 @@ where
         state.total_written = 0;
         state.index = 0;
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::trace!("Flushing");
+        trace!("Flushing");
 
         let fut = pin!(this.inner.flush());
         match ready!(fut.poll(cx)) {
             Ok(()) => Poll::Ready(Ok(())),
             Err(err) => {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::warn!("Failed to flush");
+                warn!("Failed to flush");
 
                 Poll::Ready(Err(Error::IO(err)))
             }
@@ -311,8 +317,7 @@ where
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::trace!("Poll close");
+        trace!("Poll close");
 
         ready!(self.as_mut().poll_flush(cx))?;
         let mut this = self.project();
@@ -321,8 +326,7 @@ where
         match ready!(fut.poll(cx)) {
             Ok(()) => Poll::Ready(Ok(())),
             Err(err) => {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::warn!("Failed to close");
+                warn!("Failed to close");
 
                 Poll::Ready(Err(Error::IO(err)))
             }

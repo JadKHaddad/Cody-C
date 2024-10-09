@@ -48,7 +48,7 @@ async fn over_size_panic() {
     let codec = DecoderReturningMoreSizeThanAvailable;
     let buf = &mut [0_u8; 4];
 
-    let framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
     framed_read.collect::<Vec<_>>().await;
 }
 

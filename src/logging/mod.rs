@@ -31,3 +31,18 @@ macro_rules! debug {
         defmt::debug!($($arg)*);
     };
 }
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! warn {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "tracing")]
+        tracing::warn!($($arg)*);
+
+        #[cfg(feature = "log")]
+        log::warn!($($arg)*);
+
+        #[cfg(feature = "defmt")]
+        defmt::warn!($($arg)*);
+    };
+}

@@ -6,12 +6,11 @@ use core::{
 };
 
 use futures::Stream;
-use pin_project_lite::pin_project;
 
 #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
 use crate::logging::formatter::Formatter;
 
-use crate::io::AsyncRead;
+use crate::{debug, io::AsyncRead, trace, warn};
 
 use super::{
     decoder::Decoder,
@@ -221,7 +220,7 @@ where
 {
     type Item = Result<D::Item, Error<R::Error, D::Error>>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         unimplemented!()
     }
 }
@@ -234,14 +233,13 @@ where
     D: Decoder,
     R: AsyncRead,
 {
-    /// TODO!
+    /// Converts the [`FramedRead`] into a [`Stream`](futures::Stream) of frames.
     pub fn stream(
         &'a mut self,
     ) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + '_ {
         futures::stream::unfold(self, |this| async {
             if this.state.has_errored {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::trace!("Error already");
+                trace!("Error already");
 
                 return None;
             }
@@ -250,23 +248,37 @@ where
         })
     }
 
-    /// TODO!
+    /// Converts the [`FramedRead`] into a [`Stream`](futures::Stream) of frames.
+    pub fn into_stream(self) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + 'a
+    where
+        D: 'a,
+        R: 'a,
+    {
+        futures::stream::unfold(self, |mut this| async {
+            if this.state.has_errored {
+                trace!("Error already");
+
+                return None;
+            }
+
+            Some((this.read_next().await, this))
+        })
+    }
+
+    /// Reads the next frame from the underlying source.
     pub async fn read_next(&mut self) -> Result<D::Item, Error<R::Error, D::Error>> {
         loop {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Entering loop");
-
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            {
-                let buf =
-                    Formatter(&self.state.buffer[self.state.total_consumed..self.state.index]);
-                tracing::debug!(total_consumed=%self.state.total_consumed, index=%self.state.index, ?buf);
-            }
+            trace!("Entering loop");
+            debug!(
+                "total_consumed: {}, index: {}, buffer: {:?}",
+                self.state.total_consumed,
+                self.state.index,
+                Formatter(&self.state.buffer[self.state.total_consumed..self.state.index])
+            );
 
             if self.state.is_framable {
                 if self.state.eof {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::trace!("Framing on EOF");
+                    crate::trace!("Framing on EOF");
 
                     match self.decoder.decode_eof(
                         &mut self.state.buffer[self.state.total_consumed..self.state.index],
@@ -274,24 +286,31 @@ where
                         Ok(MaybeDecoded::Frame(Frame { size, item })) => {
                             self.state.total_consumed += size;
 
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::debug!(consumed=%size, total_consumed=%self.state.total_consumed, "Frame decoded");
+                            debug!(
+                                "Frame decoded, consumed: {}, total_consumed: {}",
+                                size, self.state.total_consumed,
+                            );
 
                             #[cfg(feature = "decoder-checks")]
                             if self.state.total_consumed > self.state.index || size == 0 {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
+                                #[cfg(any(
+                                    feature = "log",
+                                    feature = "defmt",
+                                    feature = "tracing"
+                                ))]
                                 {
                                     if size == 0 {
-                                        tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
+                                        warn!("Bad decoder. Decoder consumed 0 bytes");
                                     }
 
                                     if self.state.total_consumed > self.state.index {
                                         let availalbe =
                                             self.state.index - self.state.total_consumed;
-                                        tracing::warn!(consumed=%size, index=%self.state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
+
+                                        warn!("Bad decoder. Decoder consumed more bytes than available. consumed: {}, index: {}, availalbe: {}", size, self.state.index, availalbe);
                                     }
 
-                                    tracing::trace!("Setting error");
+                                    trace!("Setting error");
                                 }
 
                                 state.has_errored = true;
@@ -302,20 +321,14 @@ where
                             return Ok(item);
                         }
                         Ok(MaybeDecoded::None(_)) => {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::debug!("No frame decoded");
-                                tracing::trace!("Setting unframable");
-                            }
+                            debug!("No frame decoded");
+                            trace!("Setting unframable");
 
                             self.state.is_framable = false;
 
                             if self.state.index != self.state.total_consumed {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::warn!("Bytes remaining on stream");
-                                    tracing::trace!("Setting error");
-                                }
+                                warn!("Bytes remaining on stream");
+                                trace!("Setting error");
 
                                 self.state.has_errored = true;
 
@@ -325,11 +338,8 @@ where
                             continue;
                         }
                         Err(err) => {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::warn!("Failed to decode frame");
-                                tracing::trace!("Setting error");
-                            }
+                            warn!("Failed to decode frame");
+                            trace!("Setting error");
 
                             self.state.has_errored = true;
 
@@ -338,8 +348,7 @@ where
                     }
                 }
 
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                tracing::trace!("Framing");
+                trace!("Framing");
 
                 match self
                     .decoder
@@ -348,23 +357,26 @@ where
                     Ok(MaybeDecoded::Frame(Frame { size, item })) => {
                         self.state.total_consumed += size;
 
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!(consumed=%size, total_consumed=%self.state.total_consumed, "Frame decoded");
+                        debug!(
+                            "Frame decoded, consumed: {}, total_consumed: {}",
+                            size, self.state.total_consumed,
+                        );
 
                         #[cfg(feature = "decoder-checks")]
                         if state.total_consumed > state.index || size == 0 {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
+                            #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
                             {
                                 if size == 0 {
-                                    tracing::warn!(consumed=%size, "Bad decoder. Decoder consumed 0 bytes");
+                                    warn!("Bad decoder. Decoder consumed 0 bytes");
                                 }
 
-                                if state.total_consumed > state.index {
-                                    let availalbe = state.framable();
-                                    tracing::warn!(consumed=%size, index=%state.index, %availalbe, "Bad decoder. Decoder consumed more bytes than available");
+                                if self.state.total_consumed > self.state.index {
+                                    let availalbe = self.state.index - self.state.total_consumed;
+
+                                    warn!("Bad decoder. Decoder consumed more bytes than available. consumed: {}, index: {}, availalbe: {}", size, self.state.index, availalbe);
                                 }
 
-                                tracing::trace!("Setting error");
+                                trace!("Setting error");
                             }
 
                             state.has_errored = true;
@@ -375,11 +387,8 @@ where
                         // Avoid framing an empty buffer
                         #[cfg(not(feature = "decode-enmpty-buffer"))]
                         if self.state.total_consumed == self.state.index {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::debug!("Resetting empty buffer");
-                                tracing::trace!("Setting unframable");
-                            }
+                            debug!("Resetting empty buffer");
+                            trace!("Setting unframable");
 
                             self.state.total_consumed = 0;
                             self.state.index = 0;
@@ -389,8 +398,7 @@ where
 
                         #[cfg(feature = "decoder-checks")]
                         {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("Unsetting frame size");
+                            trace!("Unsetting frame size");
 
                             state.frame_size = None;
                         }
@@ -398,16 +406,12 @@ where
                         return Ok(item);
                     }
                     Ok(MaybeDecoded::None(frame_size)) => {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::debug!("No frame decoded");
+                        debug!("No frame decoded");
 
                         #[cfg(feature = "decoder-checks")]
                         if let Some(_frame_size) = state.frame_size {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::warn!(frame_size=%_frame_size, "Bad decoder. Decoder promissed to decode a slice of a known frame size in a previous iteration and failed to decode in this iteration");
-                                tracing::trace!("Setting error");
-                            }
+                            warn!("Bad decoder. Decoder promissed to decode a slice of a known frame size in a previous iteration and failed to decode in this iteration. frame_size: {}", _frame_size);
+                            trace!("Setting error");
 
                             state.has_errored = true;
 
@@ -416,8 +420,7 @@ where
 
                         match frame_size {
                             FrameSize::Unknown => {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Unknown frame size");
+                                trace!("Unknown frame size");
 
                                 #[cfg(feature = "buffer-early-shift")]
                                 let shift = state.total_consumed > 0;
@@ -433,24 +436,16 @@ where
                                     self.state.index -= self.state.total_consumed;
                                     self.state.total_consumed = 0;
 
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        let copied = self.state.framable();
-                                        tracing::debug!(%copied, "Buffer shifted");
-                                    }
+                                    debug!("Buffer shifted. copied: {}", self.state.framable());
                                 }
                             }
                             FrameSize::Known(frame_size) => {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!(frame_size, "Known frame size");
+                                trace!("Known frame size. frame_size = {}", frame_size);
 
                                 #[cfg(feature = "decoder-checks")]
                                 if frame_size == 0 {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::warn!(%frame_size, "Bad decoder. Decoder promissed a frame size of 0");
-                                        tracing::trace!("Setting error");
-                                    }
+                                    warn!("Bad decoder. Decoder promissed a frame size of 0. frame_size: {}", frame_size);
+                                    trace!("Setting error");
 
                                     state.has_errored = true;
 
@@ -458,11 +453,12 @@ where
                                 }
 
                                 if frame_size > self.state.buffer.len() {
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        tracing::warn!(frame_size, buffer=%self.state.buffer.len(), "Frame size too large");
-                                        tracing::trace!("Setting error");
-                                    }
+                                    warn!(
+                                        "Frame size too large. frame_size: {}, buffer: {}",
+                                        frame_size,
+                                        self.state.buffer.len()
+                                    );
+                                    trace!("Setting error");
 
                                     self.state.has_errored = true;
 
@@ -479,31 +475,22 @@ where
                                     self.state.index -= self.state.total_consumed;
                                     self.state.total_consumed = 0;
 
-                                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                                    {
-                                        let copied = self.state.framable();
-                                        tracing::debug!(%copied, "Buffer shifted");
-                                    }
+                                    debug!("Buffer shifted. copied: {}", self.state.framable());
                                 }
 
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Setting frame size");
+                                trace!("Setting frame size");
 
                                 self.state.frame_size = Some(frame_size);
                             }
                         }
 
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::trace!("Setting unframable");
+                        trace!("Setting unframable");
 
                         self.state.is_framable = false;
                     }
                     Err(err) => {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        {
-                            tracing::warn!("Failed to decode frame");
-                            tracing::trace!("Setting error");
-                        }
+                        warn!("Failed to decode frame");
+                        trace!("Setting error");
 
                         self.state.has_errored = true;
 
@@ -513,19 +500,15 @@ where
             }
 
             if self.state.index >= self.state.buffer.len() {
-                #[cfg(all(feature = "logging", feature = "tracing"))]
-                {
-                    tracing::warn!("Buffer too small");
-                    tracing::trace!("Setting error");
-                }
+                warn!("Buffer too small");
+                trace!("Setting error");
 
                 self.state.has_errored = true;
 
                 return Err(Error::BufferTooSmall);
             }
 
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::trace!("Reading");
+            trace!("Reading");
 
             match self
                 .inner
@@ -533,40 +516,30 @@ where
                 .await
             {
                 Err(err) => {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    {
-                        tracing::warn!("Failed to read");
-                        tracing::trace!("Setting error");
-                    }
-
+                    warn!("Failed to read");
+                    trace!("Setting error");
                     self.state.has_errored = true;
 
                     return Err(Error::IO(err));
                 }
                 Ok(0) => {
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::warn!("Got EOF");
+                    warn!("Got EOF");
 
                     // If polled again after EOF reached
                     if self.state.eof {
-                        #[cfg(all(feature = "logging", feature = "tracing"))]
-                        tracing::warn!("Already EOF");
+                        warn!("Already EOF");
 
                         continue;
                     }
 
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::trace!("Setting EOF");
+                    trace!("Setting EOF");
 
                     self.state.eof = true;
 
                     match self.state.frame_size {
                         Some(_) => {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::warn!("Bytes remaining on stream");
-                                tracing::trace!("Setting error");
-                            }
+                            warn!("Bytes remaining on stream");
+                            trace!("Setting error");
 
                             self.state.has_errored = true;
 
@@ -576,16 +549,12 @@ where
                             // Avoid framing an empty buffer
                             #[cfg(not(feature = "decode-enmpty-buffer"))]
                             if self.state.total_consumed == self.state.index {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                {
-                                    tracing::debug!("Buffer empty");
-                                }
+                                debug!("Buffer empty");
 
                                 continue;
                             }
 
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("Setting framable");
+                            trace!("Setting framable");
 
                             self.state.is_framable = true;
                         }
@@ -594,8 +563,7 @@ where
                 Ok(n) => {
                     self.state.index += n;
 
-                    #[cfg(all(feature = "logging", feature = "tracing"))]
-                    tracing::debug!(bytes=%n, "Bytes read");
+                    debug!("Bytes read. bytes: {}", n);
 
                     match self.state.frame_size {
                         Some(frame_size) => {
@@ -603,31 +571,29 @@ where
                                 self.state.index - self.state.total_consumed >= frame_size;
 
                             if !frame_size_reached {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!(frame_size, index=%self.state.index, "Frame size not reached");
+                                trace!(
+                                    "Frame size not reached. frame_size: {}, index: {}",
+                                    frame_size,
+                                    self.state.index
+                                );
 
                                 continue;
                             }
 
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            {
-                                tracing::trace!(frame_size, "Frame size reached");
-                                tracing::trace!("Setting framable");
-                            }
+                            trace!("Frame size reached. frame_size: {}", frame_size);
+                            trace!("Setting framable");
 
                             self.state.is_framable = true;
 
                             #[cfg(not(feature = "decoder-checks"))]
                             {
-                                #[cfg(all(feature = "logging", feature = "tracing"))]
-                                tracing::trace!("Unsetting frame size");
+                                trace!("Unsetting frame size");
 
                                 self.state.frame_size = None;
                             }
                         }
                         None => {
-                            #[cfg(all(feature = "logging", feature = "tracing"))]
-                            tracing::trace!("Setting framable");
+                            trace!("Setting framable");
 
                             self.state.is_framable = true;
                         }
