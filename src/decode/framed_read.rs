@@ -233,11 +233,6 @@ where
 #[cfg(test)]
 mod test;
 
-/// A trait for capturing a reference to `self`.
-pub trait Captures<U> {}
-
-impl<T: ?Sized, U> Captures<U> for T {}
-
 impl<'a, D, R> FramedRead<'a, D, R>
 where
     D: Decoder,
@@ -246,7 +241,7 @@ where
     /// a method
     pub fn stream(
         &'a mut self,
-    ) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + Captures<&'a Self> {
+    ) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + '_ {
         futures::stream::unfold(self, |this| async {
             if this.state.has_errored {
                 #[cfg(all(feature = "logging", feature = "tracing"))]
