@@ -2,7 +2,7 @@ extern crate std;
 
 use std::vec::Vec;
 
-use futures::StreamExt;
+use futures::{pin_mut, StreamExt};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
@@ -201,7 +201,7 @@ async fn decode_with_pending<const I: usize, D: Decoder>(
 
     let framed_read = FramedRead::new(read, decoder, buf);
 
-    framed_read.collect().await
+    framed_read.into_stream().collect().await
 }
 
 async fn decode_with_pending_with_frame_size_aware_decoder<const I: usize>(
@@ -377,7 +377,8 @@ async fn after_none_is_none() {
     let codec = FrameSizeAwareDecoder;
     let buf = &mut [0_u8; 46];
 
-    let mut framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
+    pin_mut!(framed_read);
 
     while framed_read.next().await.is_some() {}
 
@@ -396,7 +397,8 @@ async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is
     let codec = FrameSizeAwareDecoder;
     let buf = &mut [0_u8; 64];
 
-    let mut framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
+    pin_mut!(framed_read);
 
     let mut items = Vec::new();
 
@@ -434,7 +436,8 @@ async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
     let codec = ErrorCodec;
     let buf = &mut [0_u8; 46];
 
-    let mut framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
+    pin_mut!(framed_read);
 
     let mut items = Vec::new();
 
@@ -465,7 +468,8 @@ mod codec {
         let codec = LinesCodec::<16>::new();
         let buf = &mut [0_u8; 46];
 
-        let mut framed_read = FramedRead::new(read, codec, buf);
+        let framed_read = FramedRead::new(read, codec, buf).into_stream();
+        pin_mut!(framed_read);
 
         let mut items = Vec::new();
 

@@ -20,6 +20,7 @@ async fn one_from_slice<const I: usize, const O: usize>() {
 
     let framed_read = FramedRead::new(read, codec, buf);
     let items: Vec<_> = framed_read
+        .into_stream()
         .collect::<Vec<_>>()
         .await
         .into_iter()
@@ -42,6 +43,7 @@ async fn three_from_slice<const I: usize, const O: usize>() {
 
     let framed_read = FramedRead::new(read, codec, buf);
     let items: Vec<_> = framed_read
+        .into_stream()
         .collect::<Vec<_>>()
         .await
         .into_iter()
@@ -89,6 +91,7 @@ async fn from_slow_reader<const I: usize, const O: usize>() {
 
     let framed_read = FramedRead::new(read, codec, buf);
     let items: Vec<_> = framed_read
+        .into_stream()
         .collect::<Vec<_>>()
         .await
         .into_iter()
@@ -179,6 +182,7 @@ async fn sink_stream() {
     );
 
     let collected_items: Vec<_> = framed_read
+        .into_stream()
         .collect::<Vec<_>>()
         .await
         .into_iter()

@@ -17,7 +17,7 @@ async fn from_slice<const I: usize, const O: usize>() {
     let buf = &mut [0_u8; I];
 
     let framed_read = FramedRead::new(read, codec, buf);
-    let byte_chunks: Vec<_> = framed_read.collect().await;
+    let byte_chunks: Vec<_> = framed_read.into_stream().collect().await;
 
     let bytes = byte_chunks
         .into_iter()
@@ -55,7 +55,7 @@ async fn from_slow_reader<const I: usize, const O: usize>() {
     let buf = &mut [0_u8; I];
 
     let framed_read = FramedRead::new(read, codec, buf);
-    let byte_chunks: Vec<_> = framed_read.collect().await;
+    let byte_chunks: Vec<_> = framed_read.into_stream().collect().await;
 
     let bytes = byte_chunks
         .into_iter()
@@ -159,6 +159,7 @@ async fn sink_stream() {
     let framed_read = FramedRead::new(Compat::new(read), BytesCodec::<O>, read_buf);
 
     let collected_bytes: Vec<_> = framed_read
+        .into_stream()
         .collect::<Vec<_>>()
         .await
         .into_iter()

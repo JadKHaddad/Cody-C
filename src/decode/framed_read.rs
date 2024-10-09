@@ -1,10 +1,5 @@
 //! Framed read stream. Transforms an [`AsyncRead`](crate::io::AsyncRead) into a stream of frames.
 
-use core::{
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use futures::Stream;
 
 #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
@@ -200,31 +195,6 @@ impl<'a, D, R> FramedRead<'a, D, R> {
     }
 }
 
-impl<'a, D, R> FramedRead<'a, D, R> {
-    /// Asserts that the [`FramedRead`] is a [`futures::Stream`].
-    ///
-    /// Use this function to make sure that the [`FramedRead`] is a [`futures::Stream`].
-    pub fn assert_stream(self)
-    where
-        D: Decoder,
-        R: AsyncRead,
-        Self: Stream<Item = Result<D::Item, Error<R::Error, D::Error>>>,
-    {
-    }
-}
-
-impl<'a, D, R> Stream for FramedRead<'a, D, R>
-where
-    D: Decoder,
-    R: AsyncRead + Unpin,
-{
-    type Item = Result<D::Item, Error<R::Error, D::Error>>;
-
-    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        unimplemented!()
-    }
-}
-
 #[cfg(test)]
 mod test;
 
@@ -266,6 +236,7 @@ where
     }
 
     /// Reads the next frame from the underlying source.
+    // TODO: must produce Options. See the bridge
     pub async fn read_next(&mut self) -> Result<D::Item, Error<R::Error, D::Error>> {
         loop {
             trace!("Entering loop");
