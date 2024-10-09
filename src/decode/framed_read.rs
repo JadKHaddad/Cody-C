@@ -143,7 +143,7 @@ impl<'a> ReadFrame<'a> {
 
 /// A stream of frames decoded from an underlying readable source.
 ///
-/// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::io::AsyncRead) source.
+/// - [`Stream`](futures::Stream) of frames decoded from an [`AsyncRead`](crate::io::AsyncRead) source using [`Self::stream`] or [`Self::into_stream`].
 /// - [`Iterator`](core::iter::Iterator) of frames decoded from a [`Read`](crate::decode::read::Read) source. (Not yet implemented)
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
