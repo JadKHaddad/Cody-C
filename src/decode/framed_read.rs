@@ -214,7 +214,15 @@ where
                 return None;
             }
 
-            Some((this.read_next().await, this))
+            match this.read_next().await {
+                Ok(Some(item)) => Some((Ok(item), this)),
+                Ok(None) => None,
+                Err(err) => {
+                    this.state.has_errored = true;
+
+                    Some((Err(err), this))
+                }
+            }
         })
     }
 
@@ -231,13 +239,20 @@ where
                 return None;
             }
 
-            Some((this.read_next().await, this))
+            match this.read_next().await {
+                Ok(None) => None,
+                Ok(Some(item)) => Some((Ok(item), this)),
+                Err(err) => {
+                    this.state.has_errored = true;
+
+                    Some((Err(err), this))
+                }
+            }
         })
     }
 
     /// Reads the next frame from the underlying source.
-    // TODO: must produce Options. See the bridge
-    pub async fn read_next(&mut self) -> Result<D::Item, Error<R::Error, D::Error>> {
+    pub async fn read_next(&mut self) -> Result<Option<D::Item>, Error<R::Error, D::Error>> {
         loop {
             trace!("Entering loop");
             debug!(
@@ -284,12 +299,10 @@ where
                                     trace!("Setting error");
                                 }
 
-                                state.has_errored = true;
-
-                                return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                return Err(Error::BadDecoder);
                             }
 
-                            return Ok(item);
+                            return Ok(Some(item));
                         }
                         Ok(MaybeDecoded::None(_)) => {
                             debug!("No frame decoded");
@@ -299,20 +312,14 @@ where
 
                             if self.state.index != self.state.total_consumed {
                                 warn!("Bytes remaining on stream");
-                                trace!("Setting error");
-
-                                self.state.has_errored = true;
 
                                 return Err(Error::BytesRemainingOnStream);
                             }
 
-                            continue;
+                            return Ok(None);
                         }
                         Err(err) => {
                             warn!("Failed to decode frame");
-                            trace!("Setting error");
-
-                            self.state.has_errored = true;
 
                             return Err(Error::Decode(err));
                         }
@@ -334,7 +341,7 @@ where
                         );
 
                         #[cfg(feature = "decoder-checks")]
-                        if state.total_consumed > state.index || size == 0 {
+                        if self.state.total_consumed > self.state.index || size == 0 {
                             #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
                             {
                                 if size == 0 {
@@ -346,13 +353,9 @@ where
 
                                     warn!("Bad decoder. Decoder consumed more bytes than available. consumed: {}, index: {}, availalbe: {}", size, self.state.index, availalbe);
                                 }
-
-                                trace!("Setting error");
                             }
 
-                            state.has_errored = true;
-
-                            return Poll::Ready(Some(Err(Error::BadDecoder)));
+                            return Err(Error::BadDecoder);
                         }
 
                         // Avoid framing an empty buffer
@@ -371,22 +374,19 @@ where
                         {
                             trace!("Unsetting frame size");
 
-                            state.frame_size = None;
+                            self.state.frame_size = None;
                         }
 
-                        return Ok(item);
+                        return Ok(Some(item));
                     }
                     Ok(MaybeDecoded::None(frame_size)) => {
                         debug!("No frame decoded");
 
                         #[cfg(feature = "decoder-checks")]
-                        if let Some(_frame_size) = state.frame_size {
+                        if let Some(_frame_size) = self.state.frame_size {
                             warn!("Bad decoder. Decoder promissed to decode a slice of a known frame size in a previous iteration and failed to decode in this iteration. frame_size: {}", _frame_size);
-                            trace!("Setting error");
 
-                            state.has_errored = true;
-
-                            return Poll::Ready(Some(Err(Error::BadDecoder)));
+                            return Err(Error::BadDecoder);
                         }
 
                         match frame_size {
@@ -394,7 +394,7 @@ where
                                 trace!("Unknown frame size");
 
                                 #[cfg(feature = "buffer-early-shift")]
-                                let shift = state.total_consumed > 0;
+                                let shift = self.state.total_consumed > 0;
 
                                 #[cfg(not(feature = "buffer-early-shift"))]
                                 let shift = self.state.index >= self.state.buffer.len();
@@ -416,11 +416,8 @@ where
                                 #[cfg(feature = "decoder-checks")]
                                 if frame_size == 0 {
                                     warn!("Bad decoder. Decoder promissed a frame size of 0. frame_size: {}", frame_size);
-                                    trace!("Setting error");
 
-                                    state.has_errored = true;
-
-                                    return Poll::Ready(Some(Err(Error::BadDecoder)));
+                                    return Err(Error::BadDecoder);
                                 }
 
                                 if frame_size > self.state.buffer.len() {
@@ -429,9 +426,6 @@ where
                                         frame_size,
                                         self.state.buffer.len()
                                     );
-                                    trace!("Setting error");
-
-                                    self.state.has_errored = true;
 
                                     return Err(Error::BufferTooSmall);
                                 }
@@ -461,9 +455,6 @@ where
                     }
                     Err(err) => {
                         warn!("Failed to decode frame");
-                        trace!("Setting error");
-
-                        self.state.has_errored = true;
 
                         return Err(Error::Decode(err));
                     }
@@ -472,9 +463,6 @@ where
 
             if self.state.index >= self.state.buffer.len() {
                 warn!("Buffer too small");
-                trace!("Setting error");
-
-                self.state.has_errored = true;
 
                 return Err(Error::BufferTooSmall);
             }
@@ -488,8 +476,6 @@ where
             {
                 Err(err) => {
                     warn!("Failed to read");
-                    trace!("Setting error");
-                    self.state.has_errored = true;
 
                     return Err(Error::IO(err));
                 }
@@ -500,7 +486,7 @@ where
                     if self.state.eof {
                         warn!("Already EOF");
 
-                        continue;
+                        return Ok(None);
                     }
 
                     trace!("Setting EOF");
@@ -510,9 +496,6 @@ where
                     match self.state.frame_size {
                         Some(_) => {
                             warn!("Bytes remaining on stream");
-                            trace!("Setting error");
-
-                            self.state.has_errored = true;
 
                             return Err(Error::BytesRemainingOnStream);
                         }
@@ -522,7 +505,7 @@ where
                             if self.state.total_consumed == self.state.index {
                                 debug!("Buffer empty");
 
-                                continue;
+                                return Ok(None);
                             }
 
                             trace!("Setting framable");

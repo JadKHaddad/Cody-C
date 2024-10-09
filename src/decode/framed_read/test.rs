@@ -62,7 +62,7 @@ async fn over_size_bad_decoder() {
     let buf = &mut [0_u8; 4];
 
     let framed_read = FramedRead::new(read, codec, buf);
-    let items: Vec<_> = framed_read.collect().await;
+    let items: Vec<_> = framed_read.into_stream().collect().await;
 
     let last_item = items.last().expect("No items");
     assert!(matches!(last_item, Err(Error::BadDecoder)));
@@ -79,7 +79,7 @@ async fn zero_size_bad_decoder() {
     let buf = &mut [0_u8; 4];
 
     let framed_read = FramedRead::new(read, codec, buf);
-    let items: Vec<_> = framed_read.collect().await;
+    let items: Vec<_> = framed_read.into_stream().collect().await;
 
     let last_item = items.last().expect("No items");
     assert!(matches!(last_item, Err(Error::BadDecoder)));
@@ -369,6 +369,7 @@ async fn bytes_remainning_on_stream() {
 }
 
 #[tokio::test]
+#[ignore = "Not anymore. Fuse it."]
 async fn after_none_is_none() {
     init_tracing();
 
@@ -388,7 +389,7 @@ async fn after_none_is_none() {
 }
 
 #[tokio::test]
-async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is_set_and_after_error_is_none(
+async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is_set_and_after_error(
 ) {
     init_tracing();
 
@@ -410,10 +411,6 @@ async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is
         items.last(),
         Some(Err(Error::BytesRemainingOnStream))
     ));
-
-    let item = framed_read.next().await;
-
-    assert!(item.is_none());
 }
 
 struct ErrorCodec;
@@ -428,7 +425,7 @@ impl Decoder for ErrorCodec {
 }
 
 #[tokio::test]
-async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
+async fn codec_error_with_unknown_frame_size() {
     init_tracing();
 
     let read: &[u8] = b"hello world\r\nhello worl";
@@ -446,10 +443,6 @@ async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
     }
 
     assert!(matches!(items.last(), Some(Err(Error::Decode(_)))));
-
-    let item = framed_read.next().await;
-
-    assert!(item.is_none());
 }
 
 #[cfg(feature = "codec")]
@@ -459,8 +452,7 @@ mod codec {
     use crate::codec::lines::LinesCodec;
 
     #[tokio::test]
-    async fn bytes_remaining_on_stream_after_oef_reached_and_after_error_is_none_with_unknown_frame_size(
-    ) {
+    async fn bytes_remaining_on_stream_after_oef_reached_with_unknown_frame_size() {
         init_tracing();
 
         let read: &[u8] = b"hello world\r\nhello worl";
@@ -481,10 +473,6 @@ mod codec {
             items.last(),
             Some(Err(Error::BytesRemainingOnStream))
         ));
-
-        let item = framed_read.next().await;
-
-        assert!(item.is_none());
     }
 }
 
