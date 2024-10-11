@@ -9,12 +9,11 @@ description = "A simple and fast codec for encoding and decoding data in no_std 
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
 [features]
-default = ["codec", "tracing"]
+default = ["codec", "tracing", "futures-io", "embedded-io-async"]
 std = []
 decoder-checks = []
 decode-enmpty-buffer = []
 buffer-early-shift = []
-encoder-checks = []
 codec = ["dep:heapless"]
 futures-io = ["futures/std"]
 embedded-io-async = ["dep:embedded-io-async"]

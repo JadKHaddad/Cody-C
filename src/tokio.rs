@@ -90,19 +90,11 @@ const _: () = {
     {
         type Error = tokio::io::Error;
 
-        fn write<'a>(
+        fn write_all<'a>(
             &'a mut self,
             buf: &'a [u8],
-        ) -> impl core::future::Future<Output = Result<usize, Self::Error>> {
-            self.0.write(buf)
-        }
-
-        fn flush(&mut self) -> impl core::future::Future<Output = Result<(), Self::Error>> {
-            self.0.flush()
-        }
-
-        fn shutdown(&mut self) -> impl core::future::Future<Output = Result<(), Self::Error>> {
-            self.0.shutdown()
+        ) -> impl core::future::Future<Output = Result<(), Self::Error>> {
+            self.0.write_all(buf)
         }
     }
 };

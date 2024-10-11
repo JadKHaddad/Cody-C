@@ -2,7 +2,7 @@ extern crate std;
 
 use std::vec::Vec;
 
-use futures::{SinkExt, StreamExt};
+use futures::{pin_mut, SinkExt, StreamExt};
 use tokio::io::AsyncWriteExt;
 
 use super::*;
@@ -146,7 +146,9 @@ async fn sink_stream() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write = FramedWrite::new(Compat::new(write), BytesCodec::<O>, write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), BytesCodec::<O>, write_buf).into_sink();
+        pin_mut!(framed_write);
 
         for item in chunks_clone {
             framed_write.send(item).await.unwrap();

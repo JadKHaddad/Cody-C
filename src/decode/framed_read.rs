@@ -214,7 +214,7 @@ where
                 return None;
             }
 
-            match this.read_next().await {
+            match this.read_frame().await {
                 Ok(Some(item)) => Some((Ok(item), this)),
                 Ok(None) => None,
                 Err(err) => {
@@ -226,7 +226,7 @@ where
         })
     }
 
-    /// Converts the [`FramedRead`] into a [`Stream`](futures::Stream) of frames.
+    /// Converts the [`FramedRead`] into a [`Stream`](futures::Stream) of frames consuming the [`FramedRead`].
     pub fn into_stream(self) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + 'a
     where
         D: 'a,
@@ -239,7 +239,7 @@ where
                 return None;
             }
 
-            match this.read_next().await {
+            match this.read_frame().await {
                 Ok(None) => None,
                 Ok(Some(item)) => Some((Ok(item), this)),
                 Err(err) => {
@@ -252,7 +252,7 @@ where
     }
 
     /// Reads the next frame from the underlying source.
-    pub async fn read_next(&mut self) -> Result<Option<D::Item>, Error<R::Error, D::Error>> {
+    pub async fn read_frame(&mut self) -> Result<Option<D::Item>, Error<R::Error, D::Error>> {
         loop {
             trace!("Entering loop");
             debug!(

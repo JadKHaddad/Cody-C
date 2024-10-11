@@ -3,7 +3,7 @@ extern crate std;
 use core::str::FromStr;
 use std::vec::Vec;
 
-use futures::{SinkExt, StreamExt};
+use futures::{pin_mut, SinkExt, StreamExt};
 use tokio::io::AsyncWriteExt;
 
 use super::*;
@@ -225,8 +225,9 @@ async fn sink_stream() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write =
-            FramedWrite::new(Compat::new(write), LineBytesCodec::<O>::new(), write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), LineBytesCodec::<O>::new(), write_buf).into_sink();
+        pin_mut!(framed_write);
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
@@ -270,8 +271,9 @@ async fn sink_stream() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write =
-            FramedWrite::new(Compat::new(write), LinesCodec::<O>::new(), write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), LinesCodec::<O>::new(), write_buf).into_sink();
+        pin_mut!(framed_write);
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
