@@ -9,7 +9,7 @@ description = "A simple and fast codec for encoding and decoding data in no_std 
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
 [features]
-default = ["codec", "tracing", "futures-io", "embedded-io-async"]
+default = ["codec"]
 std = []
 decoder-checks = []
 decode-enmpty-buffer = []
