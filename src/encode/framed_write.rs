@@ -195,6 +195,28 @@ impl<'a, E, W> FramedWrite<'a, E, W> {
     }
 }
 
+impl<'a, E, W> FramedWrite<'a, E, W>
+where
+    W: AsyncWrite,
+{
+    /// Converts the [`FramedWrite`] into a [`Sink`].
+    pub fn sink<I>(&'a mut self) -> impl Sink<I, Error = Error<W::Error, E::Error>> + '_
+    where
+        E: Encoder<I>,
+    {
+        futures::sink::unfold(self, |this, item: I| async move { todo!() })
+    }
+
+    /// Converts the [`FramedWrite`] into a [`Sink`] consuming the [`FramedWrite`].
+    pub fn into_sink<I>(self) -> impl Sink<I, Error = Error<W::Error, E::Error>> + 'a
+    where
+        E: Encoder<I> + 'a,
+        W: 'a,
+    {
+        futures::sink::unfold(self, |mut this, item: I| async move { todo!() })
+    }
+}
+
 impl<'a, E, W, I> Sink<I> for FramedWrite<'a, E, W>
 where
     E: Encoder<I>,
