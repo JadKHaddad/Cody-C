@@ -206,7 +206,7 @@ where
     /// Converts the [`FramedRead`] into a [`Stream`](futures::Stream) of frames.
     pub fn stream(
         &'a mut self,
-    ) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + '_ {
+    ) -> impl Stream<Item = Result<D::Item, Error<R::Error, D::Error>>> + 'a {
         futures::stream::unfold(self, |this| async {
             if this.state.has_errored {
                 trace!("Error already");

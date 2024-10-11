@@ -118,7 +118,7 @@ where
     W: AsyncWrite,
 {
     /// Converts the [`FramedWrite`] into a [`Sink`].
-    pub fn sink<I>(&'a mut self) -> impl Sink<I, Error = Error<W::Error, E::Error>> + '_
+    pub fn sink<I>(&'a mut self) -> impl Sink<I, Error = Error<W::Error, E::Error>> + 'a
     where
         I: 'a,
         E: Encoder<I>,
