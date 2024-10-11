@@ -1,10 +1,5 @@
 //! A bytes codec for encoding and decoding bytes with a length field (4 bytes).
 
-#[cfg(all(
-    feature = "logging",
-    any(feature = "log", feature = "defmt", feature = "tracing")
-))]
-use crate::logging::formatter::Formatter;
 use crate::{
     decode::{
         decoder::Decoder,
@@ -87,12 +82,6 @@ impl<const N: usize> LengthDelimitedCodec<N> {
             return Err(LengthDelimitedEncodeError::MessageTooBig);
         }
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let item = Formatter(item);
-            tracing::debug!(?item, %item_size, %frame_size, available=%dst.len(), "Encoding Frame");
-        }
-
         if dst.len() < frame_size {
             return Err(LengthDelimitedEncodeError::InputBufferTooSmall);
         }
@@ -116,28 +105,13 @@ impl<const N: usize> Decoder for LengthDelimitedCodec<N> {
     type Error = LengthDelimitedDecodeError;
 
     fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(src);
-            tracing::debug!(?src, "Decoding");
-        }
-
         if src.len() < 4 {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame size");
-
             return Ok(MaybeDecoded::None(FrameSize::Unknown));
         }
 
         let frame_size = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::debug!(frame_size, "Frame size");
-
         if src.len() < frame_size {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame");
-
             return Ok(MaybeDecoded::None(FrameSize::Known(frame_size)));
         }
 
@@ -149,11 +123,6 @@ impl<const N: usize> Decoder for LengthDelimitedCodec<N> {
 
         let item = heapless::Vec::from_slice(frame_buf)
             .map_err(|_| LengthDelimitedDecodeError::OutputBufferTooSmall)?;
-
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            tracing::debug!(frame=?frame_buf, consuming=%frame_size, "Decoded frame");
-        }
 
         Ok(MaybeDecoded::Frame(Frame::new(frame_size, item)))
     }

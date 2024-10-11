@@ -2,14 +2,8 @@ extern crate std;
 
 use std::vec::Vec;
 
-use futures::StreamExt;
+use futures::{pin_mut, StreamExt};
 use tokio::io::AsyncWriteExt;
-
-#[cfg(all(
-    feature = "logging",
-    any(feature = "log", feature = "defmt", feature = "tracing")
-))]
-use crate::logging::formatter::Formatter;
 
 use crate::{
     decode::{decoder::Decoder, frame::Frame},
@@ -54,7 +48,7 @@ async fn over_size_panic() {
     let codec = DecoderReturningMoreSizeThanAvailable;
     let buf = &mut [0_u8; 4];
 
-    let framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
     framed_read.collect::<Vec<_>>().await;
 }
 
@@ -68,7 +62,7 @@ async fn over_size_bad_decoder() {
     let buf = &mut [0_u8; 4];
 
     let framed_read = FramedRead::new(read, codec, buf);
-    let items: Vec<_> = framed_read.collect().await;
+    let items: Vec<_> = framed_read.into_stream().collect().await;
 
     let last_item = items.last().expect("No items");
     assert!(matches!(last_item, Err(Error::BadDecoder)));
@@ -85,7 +79,7 @@ async fn zero_size_bad_decoder() {
     let buf = &mut [0_u8; 4];
 
     let framed_read = FramedRead::new(read, codec, buf);
-    let items: Vec<_> = framed_read.collect().await;
+    let items: Vec<_> = framed_read.into_stream().collect().await;
 
     let last_item = items.last().expect("No items");
     assert!(matches!(last_item, Err(Error::BadDecoder)));
@@ -98,28 +92,13 @@ impl Decoder for FrameSizeAwareDecoder {
     type Error = ();
 
     fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(src);
-            tracing::debug!(?src, "Decoding");
-        }
-
         if src.len() < 4 {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame size");
-
             return Ok(MaybeDecoded::None(FrameSize::Unknown));
         }
 
         let size = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        tracing::debug!(size, "Frame size");
-
         if src.len() < size {
-            #[cfg(all(feature = "logging", feature = "tracing"))]
-            tracing::debug!("Not enough bytes to read frame");
-
             return Ok(MaybeDecoded::None(FrameSize::Known(size)));
         }
 
@@ -222,7 +201,7 @@ async fn decode_with_pending<const I: usize, D: Decoder>(
 
     let framed_read = FramedRead::new(read, decoder, buf);
 
-    framed_read.collect().await
+    framed_read.into_stream().collect().await
 }
 
 async fn decode_with_pending_with_frame_size_aware_decoder<const I: usize>(
@@ -390,6 +369,7 @@ async fn bytes_remainning_on_stream() {
 }
 
 #[tokio::test]
+#[ignore = "Not anymore. Fuse it."]
 async fn after_none_is_none() {
     init_tracing();
 
@@ -398,7 +378,8 @@ async fn after_none_is_none() {
     let codec = FrameSizeAwareDecoder;
     let buf = &mut [0_u8; 46];
 
-    let mut framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
+    pin_mut!(framed_read);
 
     while framed_read.next().await.is_some() {}
 
@@ -408,7 +389,7 @@ async fn after_none_is_none() {
 }
 
 #[tokio::test]
-async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is_set_and_after_error_is_none(
+async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is_set_and_after_error(
 ) {
     init_tracing();
 
@@ -417,7 +398,8 @@ async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is
     let codec = FrameSizeAwareDecoder;
     let buf = &mut [0_u8; 64];
 
-    let mut framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
+    pin_mut!(framed_read);
 
     let mut items = Vec::new();
 
@@ -429,10 +411,6 @@ async fn bytes_remaining_on_stream_after_oef_reached_and_promissed_frame_size_is
         items.last(),
         Some(Err(Error::BytesRemainingOnStream))
     ));
-
-    let item = framed_read.next().await;
-
-    assert!(item.is_none());
 }
 
 struct ErrorCodec;
@@ -447,7 +425,7 @@ impl Decoder for ErrorCodec {
 }
 
 #[tokio::test]
-async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
+async fn codec_error_with_unknown_frame_size() {
     init_tracing();
 
     let read: &[u8] = b"hello world\r\nhello worl";
@@ -455,7 +433,8 @@ async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
     let codec = ErrorCodec;
     let buf = &mut [0_u8; 46];
 
-    let mut framed_read = FramedRead::new(read, codec, buf);
+    let framed_read = FramedRead::new(read, codec, buf).into_stream();
+    pin_mut!(framed_read);
 
     let mut items = Vec::new();
 
@@ -464,10 +443,6 @@ async fn codec_error_and_after_error_is_none_with_unknown_frame_size() {
     }
 
     assert!(matches!(items.last(), Some(Err(Error::Decode(_)))));
-
-    let item = framed_read.next().await;
-
-    assert!(item.is_none());
 }
 
 #[cfg(feature = "codec")]
@@ -477,8 +452,7 @@ mod codec {
     use crate::codec::lines::LinesCodec;
 
     #[tokio::test]
-    async fn bytes_remaining_on_stream_after_oef_reached_and_after_error_is_none_with_unknown_frame_size(
-    ) {
+    async fn bytes_remaining_on_stream_after_oef_reached_with_unknown_frame_size() {
         init_tracing();
 
         let read: &[u8] = b"hello world\r\nhello worl";
@@ -486,7 +460,8 @@ mod codec {
         let codec = LinesCodec::<16>::new();
         let buf = &mut [0_u8; 46];
 
-        let mut framed_read = FramedRead::new(read, codec, buf);
+        let framed_read = FramedRead::new(read, codec, buf).into_stream();
+        pin_mut!(framed_read);
 
         let mut items = Vec::new();
 
@@ -498,10 +473,6 @@ mod codec {
             items.last(),
             Some(Err(Error::BytesRemainingOnStream))
         ));
-
-        let item = framed_read.next().await;
-
-        assert!(item.is_none());
     }
 }
 

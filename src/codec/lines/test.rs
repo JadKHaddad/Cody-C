@@ -3,7 +3,7 @@ extern crate std;
 use core::str::FromStr;
 use std::vec::Vec;
 
-use futures::{SinkExt, StreamExt};
+use futures::{pin_mut, SinkExt, StreamExt};
 use tokio::io::AsyncWriteExt;
 
 use super::*;
@@ -15,6 +15,7 @@ use crate::{
 macro_rules! collect_items {
     ($framed_read:expr) => {{
         let items: Vec<_> = $framed_read
+            .into_stream()
             .collect::<Vec<_>>()
             .await
             .into_iter()
@@ -224,8 +225,9 @@ async fn sink_stream() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write =
-            FramedWrite::new(Compat::new(write), LineBytesCodec::<O>::new(), write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), LineBytesCodec::<O>::new(), write_buf).into_sink();
+        pin_mut!(framed_write);
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
@@ -235,9 +237,10 @@ async fn sink_stream() {
     });
 
     let read_buf = &mut [0_u8; 1024];
-    let framed_read = FramedRead::new(Compat::new(read), LineBytesCodec::<O>::new(), read_buf);
+    let mut framed_read = FramedRead::new(Compat::new(read), LineBytesCodec::<O>::new(), read_buf);
 
     let collected_items: Vec<_> = framed_read
+        .stream()
         .collect::<Vec<_>>()
         .await
         .into_iter()
@@ -268,8 +271,9 @@ async fn sink_stream() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write =
-            FramedWrite::new(Compat::new(write), LinesCodec::<O>::new(), write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), LinesCodec::<O>::new(), write_buf).into_sink();
+        pin_mut!(framed_write);
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
@@ -279,7 +283,8 @@ async fn sink_stream() {
     });
 
     let read_buf = &mut [0_u8; 1024];
-    let framed_read = FramedRead::new(Compat::new(read), LinesCodec::<O>::new(), read_buf);
+    let framed_read =
+        FramedRead::new(Compat::new(read), LinesCodec::<O>::new(), read_buf).into_stream();
 
     let collected_items: Vec<_> = framed_read
         .collect::<Vec<_>>()

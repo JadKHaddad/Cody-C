@@ -89,19 +89,11 @@ const _: () = {
     {
         type Error = <W as ErrorType>::Error;
 
-        fn write<'a>(
+        fn write_all<'a>(
             &'a mut self,
             buf: &'a [u8],
-        ) -> impl core::future::Future<Output = Result<usize, Self::Error>> {
-            self.0.write(buf)
-        }
-
-        fn flush(&mut self) -> impl core::future::Future<Output = Result<(), Self::Error>> {
-            self.0.flush()
-        }
-
-        async fn shutdown(&mut self) -> Result<(), Self::Error> {
-            Ok(())
+        ) -> impl core::future::Future<Output = Result<(), Self::Error>> {
+            self.0.write_all(buf)
         }
     }
 };

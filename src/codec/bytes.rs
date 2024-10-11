@@ -2,12 +2,6 @@
 
 use core::convert::Infallible;
 
-#[cfg(all(
-    feature = "logging",
-    any(feature = "log", feature = "defmt", feature = "tracing")
-))]
-use crate::logging::formatter::Formatter;
-
 use crate::{
     decode::{
         decoder::Decoder,
@@ -54,12 +48,6 @@ impl<const N: usize> BytesCodec<N> {
     pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, BytesEncodeError> {
         let size = item.len();
 
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let item = Formatter(item);
-            tracing::debug!(frame=?item, item_size=%size, available=%dst.len(), "Encoding Frame");
-        }
-
         if dst.len() < size {
             return Err(BytesEncodeError::InputBufferTooSmall);
         }
@@ -75,23 +63,11 @@ impl<const N: usize> Decoder for BytesCodec<N> {
     type Error = Infallible;
 
     fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(src);
-            tracing::debug!(?src, "Decoding");
-        }
-
         let size = match src.len() {
             0 => return Ok(MaybeDecoded::None(FrameSize::Unknown)),
             n if n > N => N,
             n => n,
         };
-
-        #[cfg(all(feature = "logging", feature = "tracing"))]
-        {
-            let src = Formatter(&src[..size]);
-            tracing::debug!(frame=?src, consuming=%size, "Decoding frame");
-        }
 
         let item = heapless::Vec::from_slice(&src[..size]).expect("unreachable");
         let frame = Frame::new(size, item);

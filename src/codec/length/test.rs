@@ -7,7 +7,7 @@ extern crate std;
 
 use std::vec::Vec;
 
-use futures::{SinkExt, StreamExt};
+use futures::{pin_mut, SinkExt, StreamExt};
 
 #[tokio::test]
 async fn sink_stream() {
@@ -32,8 +32,10 @@ async fn sink_stream() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write =
-            FramedWrite::new(Compat::new(write), LengthDelimitedCodec::<256>, write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), LengthDelimitedCodec::<256>, write_buf)
+                .into_sink();
+        pin_mut!(framed_write);
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
@@ -43,7 +45,8 @@ async fn sink_stream() {
     });
 
     let read_buf = &mut [0_u8; 1024];
-    let framed_read = FramedRead::new(Compat::new(read), LengthDelimitedCodec::<256>, read_buf);
+    let framed_read =
+        FramedRead::new(Compat::new(read), LengthDelimitedCodec::<256>, read_buf).into_stream();
 
     let collected_items: Vec<_> = framed_read
         .collect::<Vec<_>>()
@@ -73,8 +76,10 @@ async fn sink_stream_small_duplex() {
 
     let handle = tokio::spawn(async move {
         let write_buf = &mut [0_u8; 1024];
-        let mut framed_write =
-            FramedWrite::new(Compat::new(write), LengthDelimitedCodec::<1024>, write_buf);
+        let framed_write =
+            FramedWrite::new(Compat::new(write), LengthDelimitedCodec::<1024>, write_buf)
+                .into_sink();
+        pin_mut!(framed_write);
 
         for item in items_clone {
             framed_write.send(item).await.unwrap();
@@ -84,7 +89,8 @@ async fn sink_stream_small_duplex() {
     });
 
     let read_buf = &mut [0_u8; 1024];
-    let framed_read = FramedRead::new(Compat::new(read), LengthDelimitedCodec::<256>, read_buf);
+    let framed_read =
+        FramedRead::new(Compat::new(read), LengthDelimitedCodec::<256>, read_buf).into_stream();
 
     let collected_items: Vec<_> = framed_read
         .collect::<Vec<_>>()

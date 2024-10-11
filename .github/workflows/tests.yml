@@ -82,30 +82,27 @@ jobs:
 
       # Logging
 
-      - name: Clippy -- logging
-        run: cargo clippy --no-default-features --features=logging -- -D warnings
+      - name: Clippy -- pretty-hex-fmt
+        run: cargo clippy --no-default-features --features="pretty-hex-fmt" -- -D warnings
 
-      - name: Clippy -- logging pretty-hex-fmt
-        run: cargo clippy --no-default-features --features="logging,pretty-hex-fmt" -- -D warnings
+      - name: Clippy -- char-fmt
+        run: cargo clippy --no-default-features --features="char-fmt" -- -D warnings
 
-      - name: Clippy -- logging char-fmt
-        run: cargo clippy --no-default-features --features="logging,char-fmt" -- -D warnings
+      - name: Clippy -- log
+        run: cargo clippy --no-default-features --features="log" -- -D warnings
 
-      - name: Clippy -- logging log
-        run: cargo clippy --no-default-features --features="logging,log" -- -D warnings
+      - name: Clippy -- defmt
+        run: cargo clippy --no-default-features --features="defmt" -- -D warnings
 
-      - name: Clippy -- logging defmt
-        run: cargo clippy --no-default-features --features="logging,defmt" -- -D warnings
+      - name: Clippy -- tracing
+        run: cargo clippy --no-default-features --features="tracing" -- -D warnings
 
-      - name: Clippy -- logging tracing
-        run: cargo clippy --no-default-features --features="logging,tracing" -- -D warnings
+      # Codec, FramedRead
 
-      # Codec, FramedRead, FramedWrite
-
-      - name: Test - codec framed_read and framed_write without (decoder-checks, encoder-checks, buffer-early-shift)
+      - name: Test - codec framed_read without (decoder-checks, buffer-early-shift)
         run: cargo test --no-default-features --features "codec,tokio"
 
-      - name: Test - codec framed_read and framed_write with buffer-early-shift without (decoder-checks, encoder-checks)
+      - name: Test - codec framed_read with buffer-early-shift without (decoder-checks)
         run: cargo test --no-default-features --features "codec,buffer-early-shift"
 
       # FramedRead
@@ -128,7 +125,3 @@ jobs:
       - name: Test - framed_read with decoder-checks and decode-enmpty-buffer and buffer-early-shift
         run: cargo test --no-default-features --features "codec,decoder-checks,decode-enmpty-buffer,buffer-early-shift"
 
-      # FramedWrite
-
-      - name: Test - freamed_write with encoder-checks
-        run: cargo test --no-default-features --features "codec,encoder-checks"
