@@ -97,7 +97,7 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
     }
 }
 
-impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
+impl<const N: usize> Decoder for AnyDelimiterCodec<'_, N> {
     type Item = heapless::Vec<u8, N>;
     type Error = AnyDelimiterDecodeError;
 
@@ -144,7 +144,7 @@ impl<'a, const N: usize> Decoder for AnyDelimiterCodec<'a, N> {
     }
 }
 
-impl<'a, const N: usize> Encoder<heapless::Vec<u8, N>> for AnyDelimiterCodec<'a, N> {
+impl<const N: usize> Encoder<heapless::Vec<u8, N>> for AnyDelimiterCodec<'_, N> {
     type Error = AnyDelimiterEncodeError;
 
     fn encode(&mut self, item: heapless::Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
