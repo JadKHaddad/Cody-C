@@ -158,7 +158,7 @@ impl<'a, const N: usize> From<AnyDelimiterCodec<'a>> for AnyDelimiterCodecOwned<
     }
 }
 
-impl<'a, const N: usize> DecoderOwned for AnyDelimiterCodecOwned<'a, N> {
+impl<const N: usize> DecoderOwned for AnyDelimiterCodecOwned<'_, N> {
     type Item = Vec<u8, N>;
     type Error = ();
 
@@ -174,7 +174,7 @@ impl<'a, const N: usize> DecoderOwned for AnyDelimiterCodecOwned<'a, N> {
     }
 }
 
-impl<'a, const N: usize> Encoder<Vec<u8, N>> for AnyDelimiterCodecOwned<'a, N> {
+impl<const N: usize> Encoder<Vec<u8, N>> for AnyDelimiterCodecOwned<'_, N> {
     type Error = AnyDelimiterEncodeError;
 
     fn encode(&mut self, item: Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
