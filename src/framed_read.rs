@@ -568,7 +568,7 @@ mod test {
 
     use std::vec::Vec;
 
-    use futures::StreamExt;
+    use futures::{pin_mut, SinkExt, StreamExt};
     use tokio::io::AsyncWriteExt;
 
     use crate::{
@@ -579,6 +579,7 @@ mod test {
         error,
         test::init_tracing,
         tokio::Compat,
+        FramedWrite,
     };
 
     use super::*;
@@ -721,25 +722,30 @@ mod test {
     }
 
     #[tokio::test]
-    async fn stream() {
+    async fn stream_sink() {
         init_tracing();
 
-        let items: &[&[u8]] = &[
-            b"Hello\n",
-            b"Hello, world!\n",
-            b"Hei\r\n",
-            b"sup\n",
-            b"Hey\r\n",
-            b"How are y",
+        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+            heapless::Vec::from_slice(b"Hello").unwrap(),
+            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"Hei").unwrap(),
+            heapless::Vec::from_slice(b"sup").unwrap(),
+            heapless::Vec::from_slice(b"Hey").unwrap(),
         ];
 
-        let decoder = LinesCodecOwned::<1024>::new();
+        let decoder = LinesCodecOwned::<32>::new();
+        let encoder = LinesCodecOwned::<32>::new();
 
-        let (read, mut write) = tokio::io::duplex(1024);
+        let (read, write) = tokio::io::duplex(1024);
 
         tokio::spawn(async move {
+            let mut witer = FramedWrite::new_with_buffer(encoder, Compat::new(write), [0_u8; 1024]);
+            let sink = witer.sink();
+
+            pin_mut!(sink);
+
             for item in items {
-                write.write_all(item.as_ref()).await.expect("Must write");
+                sink.send(item).await.expect("Must send");
             }
         });
 
