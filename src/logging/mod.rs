@@ -34,6 +34,36 @@ macro_rules! debug {
 
 #[macro_export]
 #[doc(hidden)]
+macro_rules! error {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "tracing")]
+        tracing::error!($($arg)*);
+
+        #[cfg(feature = "log")]
+        log::error!($($arg)*);
+
+        #[cfg(feature = "defmt")]
+        defmt::error!($($arg)*);
+    };
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! info {
+    ($($arg:tt)*) => {
+        #[cfg(feature = "tracing")]
+        tracing::info!($($arg)*);
+
+        #[cfg(feature = "log")]
+        log::info!($($arg)*);
+
+        #[cfg(feature = "defmt")]
+        defmt::info!($($arg)*);
+    };
+}
+
+#[macro_export]
+#[doc(hidden)]
 macro_rules! warn {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]

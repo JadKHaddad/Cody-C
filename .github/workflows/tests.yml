@@ -41,8 +41,12 @@ jobs:
         with:
           tool: cargo-nextest
 
+      # Format
+
       - name: Format
         run: cargo fmt -- --check
+
+      # Clippy
 
       - name: Clippy --no-default-features
         run: cargo clippy --no-default-features -- -D warnings
@@ -53,13 +57,6 @@ jobs:
       - name: Clippy --all-features
         run: cargo clippy --all --all-features -- -D warnings
 
-      # Codec
-
-      - name: Clippy -- codec
-        run: cargo clippy --no-default-features --features=codec -- -D warnings
-
-      # Compatibility
-
       - name: Clippy -- std
         run: cargo clippy --no-default-features --features=std -- -D warnings
 
@@ -69,18 +66,8 @@ jobs:
       - name: Clippy -- embedded-io-async
         run: cargo clippy --no-default-features --features=embedded-io-async -- -D warnings
 
-      - name: Clippy -- embedded-io
-        run: cargo clippy --no-default-features --features=embedded-io -- -D warnings
-
       - name: Clippy -- tokio
         run: cargo clippy --no-default-features --features=tokio -- -D warnings
-
-      # Defmt
-
-      - name: Clippy -- defmt
-        run: cargo clippy --no-default-features --features=defmt -- -D warnings
-
-      # Logging
 
       - name: Clippy -- pretty-hex-fmt
         run: cargo clippy --no-default-features --features="pretty-hex-fmt" -- -D warnings
@@ -97,31 +84,10 @@ jobs:
       - name: Clippy -- tracing
         run: cargo clippy --no-default-features --features="tracing" -- -D warnings
 
-      # Codec, FramedRead
+      # Test
 
-      - name: Test - codec framed_read without (decoder-checks, buffer-early-shift)
-        run: cargo test --no-default-features --features "codec,tokio"
+      - name: Test
+        run: cargo nextest run
 
-      - name: Test - codec framed_read with buffer-early-shift without (decoder-checks)
-        run: cargo test --no-default-features --features "codec,buffer-early-shift"
-
-      # FramedRead
-
-      - name: Test - framed_read with decode-enmpty-buffer without (decoder-checks, buffer-early-shift)
-        run: cargo test --no-default-features --features "codec,decode-enmpty-buffer"
-
-      - name: Test - framed_read with decode-enmpty-buffer buffer-early-shift without decoder-checks
-        run: cargo test --no-default-features --features "codec,decode-enmpty-buffer,buffer-early-shift"
-
-      - name: Test - framed_read with decoder-checks without buffer-early-shift
-        run: cargo test --no-default-features --features "codec,decoder-checks"
-
-      - name: Test - framed_read with decoder-checks and buffer-early-shift
-        run: cargo test --no-default-features --features "codec,decoder-checks,buffer-early-shift"
-
-      - name: Test - framed_read with decoder-checks and decode-enmpty-buffer without buffer-early-shift
-        run: cargo test --no-default-features --features "codec,decoder-checks,decode-enmpty-buffer"
-
-      - name: Test - framed_read with decoder-checks and decode-enmpty-buffer and buffer-early-shift
-        run: cargo test --no-default-features --features "codec,decoder-checks,decode-enmpty-buffer,buffer-early-shift"
-
+      - name: Test -- buffer-early-shift
+        run: cargo nextest run --features buffer-early-shift

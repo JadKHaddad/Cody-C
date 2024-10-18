@@ -1,56 +1,43 @@
 [package]
 name = "cody-c"
-version = "0.2.0"
+version = "0.3.0-rc.1"
 edition = "2021"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 description = "A simple and fast codec for encoding and decoding data in no_std environments"
+repository = "https://github.com/JadKHaddad/Cody-C"
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
 [features]
-default = ["codec"]
+default = ["char-fmt"]
 std = []
-decoder-checks = []
-decode-enmpty-buffer = []
-buffer-early-shift = []
-codec = ["dep:heapless"]
+tokio = ["dep:tokio"]
 futures-io = ["futures/std"]
 embedded-io-async = ["dep:embedded-io-async"]
-embedded-io = ["dep:embedded-io"]
-tokio = ["dep:tokio"]
+log = ["dep:log"]
+tracing = ["dep:tracing"]
+defmt = ["dep:defmt"]
 pretty-hex-fmt = []
 char-fmt = []
-log = ["dep:log"]
-defmt = ["dep:defmt"]
-tracing = ["dep:tracing"]
+buffer-early-shift = []
 
 [dependencies]
-heapless = { version = "0.8.0", optional = true }
-futures = { version = "0.3.31", default-features = false }
-embedded-io-async = { version = "0.6.1", optional = true }
-embedded-io = { version = "0.6.1", optional = true }
 tokio = { version = "1.37.0", optional = true, default-features = false, features = [
     "io-util",
 ] }
-tracing = { version = "0.1.40", optional = true }
-defmt = { version = "0.3.6", optional = true }
+embedded-io-async = { version = "0.6.1", optional = true }
 log = { version = "0.4.22", default-features = false, optional = true }
+tracing = { version = "0.1.40", default-features = false, optional = true }
+defmt = { version = "0.3.6", default-features = false, optional = true }
+futures = { version = "0.3.31", default-features = false }
+heapless = { version = "0.8.0", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
-tokio-test = "0.4.4"
-tokio-util = { version = "0.7.11", features = ["codec"] }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-futures = "0.3.3"
-criterion = { version = "0.5", features = ["html_reports"] }
 
-[[bench]]
-name = "tokio"
-harness = false
-required-features = ["tokio"]
-# cargo bench --features tokio
 
 [package.metadata.docs.rs]
 all-features = true

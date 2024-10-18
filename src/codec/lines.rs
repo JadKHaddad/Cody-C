@@ -1,125 +1,24 @@
-//! Lines codecs for encoding and decoding line bytes or line `string`s.
+//! Lines codecs for encoding and decoding line bytes.
+
+use core::convert::Infallible;
+
+use heapless::Vec;
 
 use crate::{
-    decode::{
-        decoder::Decoder,
-        frame::Frame,
-        maybe_decoded::{FrameSize, MaybeDecoded},
-    },
-    encode::encoder::Encoder,
+    decode::{Decoder, DecoderOwned},
+    encode::Encoder,
 };
 
 /// A codec that decodes a sequence of bytes into a line and encodes a line into a sequence of bytes.
-///
-/// `N` is the maximum number of bytes that a frame can contain.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct LineBytesCodec<const N: usize> {
+pub struct LinesCodec {
     /// The number of bytes of the slice that have been seen so far.
     seen: usize,
 }
 
-/// An error that can occur when decoding a sequence of bytes into a line.
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum LineBytesDecodeError {
-    /// The decoded line is too large to fit into the output buffer.
-    OutputBufferTooSmall,
-}
-
-impl core::fmt::Display for LineBytesDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LineBytesDecodeError {}
-
-/// An error that can occur when encoding a line into a sequence of bytes.
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum LineBytesEncodeError {
-    /// The input buffer is too small to fit the encoded line.
-    InputBufferTooSmall,
-}
-
-impl core::fmt::Display for LineBytesEncodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InputBufferTooSmall => write!(f, "Input buffer too small"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LineBytesEncodeError {}
-
-impl<const N: usize> Default for LineBytesCodec<N> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// A codec that decodes a sequence of bytes into a line `string` and encodes a line `string` into a sequence of bytes.
-///
-/// `N` is the maximum number of bytes that a frame can contain.
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct LinesCodec<const N: usize> {
-    /// The inner [`LineBytesCodec`].
-    inner: LineBytesCodec<N>,
-}
-
-/// An error that can occur when decoding a sequence of bytes into a line `string`.
-#[derive(Debug)]
-pub enum LinesDecodeError {
-    /// The decoded line `string` is not valid UTF-8.
-    Utf8Error(core::str::Utf8Error),
-    /// The underlying [`LineBytesCodec`] encountered an error.
-    LineBytesDecodeError(LineBytesDecodeError),
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for LinesDecodeError {
-    fn format(&self, f: defmt::Formatter) {
-        match self {
-            Self::Utf8Error(_) => defmt::write!(f, "UTF-8 error"),
-            Self::LineBytesDecodeError(err) => {
-                defmt::write!(f, "Line bytes decoder error: {}", err)
-            }
-        }
-    }
-}
-
-impl From<core::str::Utf8Error> for LinesDecodeError {
-    fn from(err: core::str::Utf8Error) -> Self {
-        Self::Utf8Error(err)
-    }
-}
-
-impl From<LineBytesDecodeError> for LinesDecodeError {
-    fn from(err: LineBytesDecodeError) -> Self {
-        Self::LineBytesDecodeError(err)
-    }
-}
-
-impl core::fmt::Display for LinesDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Utf8Error(err) => write!(f, "UTF-8 error: {}", err),
-            Self::LineBytesDecodeError(err) => write!(f, "Line bytes decoder error: {}", err),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LinesDecodeError {}
-
-impl<const N: usize> LineBytesCodec<N> {
-    /// Creates a new [`LineBytesCodec`].
+impl LinesCodec {
+    /// Creates a new [`LinesCodec`].
     #[inline]
     pub const fn new() -> Self {
         Self { seen: 0 }
@@ -131,12 +30,66 @@ impl<const N: usize> LineBytesCodec<N> {
         self.seen
     }
 
-    /// Encodes a line bytes into a destination buffer.
-    pub fn encode_slice(&self, item: &[u8], dst: &mut [u8]) -> Result<usize, LineBytesEncodeError> {
+    /// Clears the number of bytes of the slice that have been seen so far.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.seen = 0;
+    }
+}
+
+impl<'buf> Decoder<'buf> for LinesCodec {
+    type Item = &'buf [u8];
+    type Error = Infallible;
+
+    fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        while self.seen < src.len() {
+            if src[self.seen] == b'\n' {
+                let line_bytes = match &src[..self.seen].last() {
+                    Some(b'\r') => &src[..self.seen - 1],
+                    _ => &src[..self.seen],
+                };
+
+                let item = (line_bytes, self.seen + 1);
+
+                self.seen = 0;
+
+                return Ok(Some(item));
+            }
+
+            self.seen += 1;
+        }
+
+        Ok(None)
+    }
+}
+
+/// An error that can occur when encoding a line into a sequence of bytes.
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum LinesEncodeError {
+    /// The input buffer is too small to fit the encoded line.
+    BufferTooSmall,
+}
+
+impl core::fmt::Display for LinesEncodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::BufferTooSmall => write!(f, "buffer too small"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for LinesEncodeError {}
+
+impl Encoder<&[u8]> for LinesCodec {
+    type Error = LinesEncodeError;
+
+    fn encode(&mut self, item: &[u8], dst: &mut [u8]) -> Result<usize, Self::Error> {
         let size = item.len() + 2;
 
         if dst.len() < size {
-            return Err(LineBytesEncodeError::InputBufferTooSmall);
+            return Err(LinesEncodeError::BufferTooSmall);
         }
 
         dst[..item.len()].copy_from_slice(item);
@@ -146,125 +99,57 @@ impl<const N: usize> LineBytesCodec<N> {
     }
 }
 
-impl<const N: usize> Decoder for LineBytesCodec<N> {
-    type Item = heapless::Vec<u8, N>;
-    type Error = LineBytesDecodeError;
-
-    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        while self.seen < src.len() {
-            if src[self.seen] == b'\n' {
-                let line_bytes_without_n = &src[..self.seen];
-
-                let line_bytes = match line_bytes_without_n.last() {
-                    Some(b'\r') => &line_bytes_without_n[..self.seen - 1],
-                    _ => line_bytes_without_n,
-                };
-
-                let item = heapless::Vec::from_slice(line_bytes)
-                    .map_err(|_| LineBytesDecodeError::OutputBufferTooSmall)?;
-
-                let frame = Frame::new(self.seen + 1, item);
-
-                self.seen = 0;
-
-                return Ok(MaybeDecoded::Frame(frame));
-            }
-
-            self.seen += 1;
-        }
-
-        Ok(MaybeDecoded::None(FrameSize::Unknown))
-    }
-}
-
-impl<const N: usize> Encoder<heapless::Vec<u8, N>> for LineBytesCodec<N> {
-    type Error = LineBytesEncodeError;
-
-    fn encode(&mut self, item: heapless::Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
-        self.encode_slice(&item, dst)
-    }
-}
-
-/// An error that can occur when encoding a line `string` into a sequence of bytes.
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum LinesEncodeError {
-    /// The underlying [`LineBytesCodec`] encountered an error.
-    LineBytesEncodeError(LineBytesEncodeError),
+pub struct LinesCodecOwned<const N: usize> {
+    inner: LinesCodec,
 }
 
-impl From<LineBytesEncodeError> for LinesEncodeError {
-    fn from(err: LineBytesEncodeError) -> Self {
-        Self::LineBytesEncodeError(err)
-    }
-}
-
-impl core::fmt::Display for LinesEncodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::LineBytesEncodeError(err) => write!(f, "Line bytes encoder error: {}", err),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LinesEncodeError {}
-
-impl<const N: usize> LinesCodec<N> {
-    /// Creates a new [`LinesCodec`].
+impl<const N: usize> LinesCodecOwned<N> {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            inner: LineBytesCodec::new(),
+            inner: LinesCodec::new(),
         }
     }
 
-    /// Returns the number of bytes of the slice that have been seen so far.
     #[inline]
     pub const fn seen(&self) -> usize {
         self.inner.seen()
     }
 
-    /// Encodes a line `string` into a destination buffer.
-    pub fn encode_str(&self, item: &str, dst: &mut [u8]) -> Result<usize, LinesEncodeError> {
-        match self.inner.encode_slice(item.as_bytes(), dst) {
-            Ok(size) => Ok(size),
-            Err(err) => Err(LinesEncodeError::LineBytesEncodeError(err)),
-        }
+    #[inline]
+    pub fn clear(&mut self) {
+        self.inner.clear();
     }
 }
 
-impl<const N: usize> Default for LinesCodec<N> {
-    fn default() -> Self {
-        Self::new()
+impl<const N: usize> From<LinesCodec> for LinesCodecOwned<N> {
+    fn from(inner: LinesCodec) -> Self {
+        Self { inner }
     }
 }
 
-impl<const N: usize> Decoder for LinesCodec<N> {
-    type Item = heapless::String<N>;
-    type Error = LinesDecodeError;
+impl<const N: usize> DecoderOwned for LinesCodecOwned<N> {
+    type Item = Vec<u8, N>;
+    type Error = ();
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        match self.inner.decode(src)? {
-            MaybeDecoded::Frame(frame) => {
-                let size = frame.size();
-                let item = heapless::String::from_utf8(frame.into_item())
-                    .map_err(LinesDecodeError::Utf8Error)?;
-
-                Ok(MaybeDecoded::Frame(Frame::new(size, item)))
+    fn decode_owned(&mut self, src: &mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        match Decoder::decode(&mut self.inner, src) {
+            Ok(Some((bytes, size))) => {
+                let item = Vec::from_slice(bytes)?;
+                Ok(Some((item, size)))
             }
-            MaybeDecoded::None(frame_size) => Ok(MaybeDecoded::None(frame_size)),
+            Ok(None) => Ok(None),
+            Err(_) => unreachable!(),
         }
     }
 }
 
-impl<const N: usize> Encoder<heapless::String<N>> for LinesCodec<N> {
+impl<const N: usize> Encoder<Vec<u8, N>> for LinesCodecOwned<N> {
     type Error = LinesEncodeError;
 
-    fn encode(&mut self, item: heapless::String<N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
-        self.encode_str(&item, dst)
+    fn encode(&mut self, item: Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        Encoder::encode(&mut self.inner, &item, dst)
     }
 }
-
-#[cfg(test)]
-mod test;
