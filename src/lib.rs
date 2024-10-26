@@ -20,6 +20,7 @@ pub use decode::*;
 pub use encode::*;
 pub use framed_read::*;
 pub use framed_write::*;
+pub use io::*;
 
 #[cfg(any(test, feature = "tokio"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
