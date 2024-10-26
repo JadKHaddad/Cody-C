@@ -99,6 +99,7 @@ impl Encoder<&[u8]> for LinesCodec {
     }
 }
 
+/// An owned [`LinesCodec`].
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LinesCodecOwned<const N: usize> {
@@ -106,6 +107,7 @@ pub struct LinesCodecOwned<const N: usize> {
 }
 
 impl<const N: usize> LinesCodecOwned<N> {
+    /// Creates a new [`LinesCodecOwned`].
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -113,11 +115,13 @@ impl<const N: usize> LinesCodecOwned<N> {
         }
     }
 
+    /// Returns the number of bytes of the slice that have been seen so far.
     #[inline]
     pub const fn seen(&self) -> usize {
         self.inner.seen()
     }
 
+    /// Clears the number of bytes of the slice that have been seen so far.
     #[inline]
     pub fn clear(&mut self) {
         self.inner.clear();

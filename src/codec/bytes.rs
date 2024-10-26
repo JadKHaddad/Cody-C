@@ -66,6 +66,7 @@ impl Encoder<&[u8]> for BytesCodec {
     }
 }
 
+/// An owned [`BytesCodec`].
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct BytesCodecOwned<const N: usize> {
@@ -73,6 +74,7 @@ pub struct BytesCodecOwned<const N: usize> {
 }
 
 impl<const N: usize> BytesCodecOwned<N> {
+    /// Creates a new [`BytesCodecOwned`].
     #[inline]
     pub const fn new() -> Self {
         Self {

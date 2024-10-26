@@ -38,6 +38,7 @@ where
     }
 }
 
+/// A decoder that decodes an owned frame from a buffer.
 pub trait DecoderOwned {
     /// The type of item that this decoder decodes.
     type Item;

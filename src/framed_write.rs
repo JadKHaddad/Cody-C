@@ -190,6 +190,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
         }
     }
 
+    /// Converts the [`FramedWrite`] into a sink.
     pub fn sink<'this, I>(
         &'this mut self,
     ) -> impl Sink<I, Error = FramedWriteError<W::Error, E::Error>> + 'this

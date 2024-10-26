@@ -122,6 +122,7 @@ impl Encoder<&[u8]> for AnyDelimiterCodec<'_> {
     }
 }
 
+/// An owned [`AnyDelimiterCodec`].
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AnyDelimiterCodecOwned<'a, const N: usize> {
@@ -129,6 +130,7 @@ pub struct AnyDelimiterCodecOwned<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> AnyDelimiterCodecOwned<'a, N> {
+    /// Creates a new [`AnyDelimiterCodecOwned`] with the given `delimiter`.
     #[inline]
     pub const fn new(delimiter: &'a [u8]) -> Self {
         Self {
@@ -136,16 +138,19 @@ impl<'a, const N: usize> AnyDelimiterCodecOwned<'a, N> {
         }
     }
 
+    /// Returns the delimiter to search for.
     #[inline]
     pub const fn delimiter(&self) -> &'a [u8] {
         self.inner.delimiter
     }
 
+    /// Returns the number of bytes of the slice that have been seen so far.
     #[inline]
     pub const fn seen(&self) -> usize {
         self.inner.seen
     }
 
+    /// Clears the number of bytes of the slice that have been seen so far.
     #[inline]
     pub fn clear(&mut self) {
         self.inner.seen = 0;

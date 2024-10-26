@@ -542,6 +542,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
         }
     }
 
+    /// Converts the [`FramedRead`] into a stream of frames.
     pub fn stream(
         &mut self,
     ) -> impl Stream<Item = Result<D::Item, FramedReadError<R::Error, D::Error>>> + '_
