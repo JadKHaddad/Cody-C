@@ -1,6 +1,6 @@
 [package]
 name = "cody-c"
-version = "0.3.0-rc.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 license = "MIT OR Apache-2.0"
