@@ -1,65 +1,25 @@
 //! An any delimiter codec for encoding and decoding bytes.
 
+use core::convert::Infallible;
+
+use heapless::Vec;
+
 use crate::{
-    decode::{
-        decoder::Decoder,
-        frame::Frame,
-        maybe_decoded::{FrameSize, MaybeDecoded},
-    },
-    encode::encoder::Encoder,
+    decode::{Decoder, DecoderOwned},
+    encode::Encoder,
 };
 
 /// A codec that decodes a sequence of bytes ending with a `delimiter` into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes ending with a `delimiter`.
-///
-/// `N` is the maximum number of bytes that a frame can contain.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct AnyDelimiterCodec<'a, const N: usize> {
+pub struct AnyDelimiterCodec<'a> {
     /// The delimiter to search for.
     delimiter: &'a [u8],
     /// The number of bytes of the slice that have been seen so far.
     seen: usize,
 }
 
-/// An error that can occur when decoding a sequence of bytes ending with a `delimiter` into a sequence of bytes.
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum AnyDelimiterDecodeError {
-    /// The decoded sequesnce of bytes is too large to fit into the output buffer.
-    OutputBufferTooSmall,
-}
-
-impl core::fmt::Display for AnyDelimiterDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::OutputBufferTooSmall => write!(f, "Output buffer too small"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for AnyDelimiterDecodeError {}
-
-/// An error that can occur when encoding a sequence of bytes into a sequence of bytes ending with a `delimiter`.
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum AnyDelimiterEncodeError {
-    /// The input buffer is too small to fit the encoded sequesnce of bytes.
-    InputBufferTooSmall,
-}
-
-impl core::fmt::Display for AnyDelimiterEncodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InputBufferTooSmall => write!(f, "Input buffer too small"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for AnyDelimiterEncodeError {}
-
-impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
+impl<'a> AnyDelimiterCodec<'a> {
     /// Creates a new [`AnyDelimiterCodec`] with the given `delimiter`.
     #[inline]
     pub const fn new(delimiter: &'a [u8]) -> Self {
@@ -78,16 +38,81 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
         self.seen
     }
 
-    /// Encodes a slice of bytes into a destination buffer.
-    pub fn encode_slice(
-        &self,
-        item: &[u8],
-        dst: &mut [u8],
-    ) -> Result<usize, AnyDelimiterEncodeError> {
+    /// Clears the number of bytes of the slice that have been seen so far.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.seen = 0;
+    }
+}
+
+impl<'buf> Decoder<'buf> for AnyDelimiterCodec<'_> {
+    type Item = &'buf [u8];
+    type Error = Infallible;
+
+    fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        if src.len() < self.delimiter.len() {
+            return Ok(None);
+        }
+
+        match self.delimiter.last() {
+            None => {
+                let bytes = &src[..self.seen + 1];
+                let item = (bytes, self.seen + 1);
+
+                Ok(Some(item))
+            }
+            Some(last_byte) => {
+                while self.seen < src.len() {
+                    if src[self.seen] == *last_byte {
+                        let src_delimiter =
+                            &src[self.seen + 1 - self.delimiter.len()..self.seen + 1];
+
+                        if src_delimiter == self.delimiter {
+                            let bytes = &src[..self.seen + 1 - self.delimiter.len()];
+                            let item = (bytes, self.seen + 1);
+
+                            self.seen = 0;
+
+                            return Ok(Some(item));
+                        }
+                    }
+
+                    self.seen += 1;
+                }
+
+                Ok(None)
+            }
+        }
+    }
+}
+
+/// An error that can occur when encoding a sequence of bytes into a sequence of bytes ending with a `delimiter`.
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum AnyDelimiterEncodeError {
+    /// The input buffer is too small to fit the encoded sequesnce of bytes.
+    BufferTooSmall,
+}
+
+impl core::fmt::Display for AnyDelimiterEncodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            AnyDelimiterEncodeError::BufferTooSmall => write!(f, "buffer too small"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for AnyDelimiterEncodeError {}
+
+impl Encoder<&[u8]> for AnyDelimiterCodec<'_> {
+    type Error = AnyDelimiterEncodeError;
+
+    fn encode(&mut self, item: &[u8], dst: &mut [u8]) -> Result<usize, Self::Error> {
         let size = item.len() + self.delimiter.len();
 
         if dst.len() < size {
-            return Err(AnyDelimiterEncodeError::InputBufferTooSmall);
+            return Err(AnyDelimiterEncodeError::BufferTooSmall);
         }
 
         dst[..item.len()].copy_from_slice(item);
@@ -97,60 +122,67 @@ impl<'a, const N: usize> AnyDelimiterCodec<'a, N> {
     }
 }
 
-impl<const N: usize> Decoder for AnyDelimiterCodec<'_, N> {
-    type Item = heapless::Vec<u8, N>;
-    type Error = AnyDelimiterDecodeError;
+/// An owned [`AnyDelimiterCodec`].
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct AnyDelimiterCodecOwned<'a, const N: usize> {
+    inner: AnyDelimiterCodec<'a>,
+}
 
-    fn decode(&mut self, src: &mut [u8]) -> Result<MaybeDecoded<Self::Item>, Self::Error> {
-        if src.len() < self.delimiter.len() {
-            return Ok(MaybeDecoded::None(FrameSize::Unknown));
+impl<'a, const N: usize> AnyDelimiterCodecOwned<'a, N> {
+    /// Creates a new [`AnyDelimiterCodecOwned`] with the given `delimiter`.
+    #[inline]
+    pub const fn new(delimiter: &'a [u8]) -> Self {
+        Self {
+            inner: AnyDelimiterCodec::new(delimiter),
         }
+    }
 
-        match self.delimiter.last() {
-            None => {
-                let item = heapless::Vec::from_slice(&src[..self.seen + 1])
-                    .map_err(|_| AnyDelimiterDecodeError::OutputBufferTooSmall)?;
+    /// Returns the delimiter to search for.
+    #[inline]
+    pub const fn delimiter(&self) -> &'a [u8] {
+        self.inner.delimiter
+    }
 
-                let frame = Frame::new(self.seen + 1, item);
+    /// Returns the number of bytes of the slice that have been seen so far.
+    #[inline]
+    pub const fn seen(&self) -> usize {
+        self.inner.seen
+    }
 
-                Ok(MaybeDecoded::Frame(frame))
+    /// Clears the number of bytes of the slice that have been seen so far.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.inner.seen = 0;
+    }
+}
+
+impl<'a, const N: usize> From<AnyDelimiterCodec<'a>> for AnyDelimiterCodecOwned<'a, N> {
+    fn from(inner: AnyDelimiterCodec<'a>) -> Self {
+        Self { inner }
+    }
+}
+
+impl<const N: usize> DecoderOwned for AnyDelimiterCodecOwned<'_, N> {
+    type Item = Vec<u8, N>;
+    type Error = ();
+
+    fn decode_owned(&mut self, src: &mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        match Decoder::decode(&mut self.inner, src) {
+            Ok(Some((bytes, size))) => {
+                let item = Vec::from_slice(bytes)?;
+                Ok(Some((item, size)))
             }
-            Some(last_byte) => {
-                while self.seen < src.len() {
-                    if src[self.seen] == *last_byte {
-                        let src_delimiter =
-                            &src[self.seen + 1 - self.delimiter.len()..self.seen + 1];
-
-                        if src_delimiter == self.delimiter {
-                            let item = heapless::Vec::from_slice(
-                                &src[..self.seen + 1 - self.delimiter.len()],
-                            )
-                            .map_err(|_| AnyDelimiterDecodeError::OutputBufferTooSmall)?;
-
-                            let frame = Frame::new(self.seen + 1, item);
-
-                            self.seen = 0;
-
-                            return Ok(MaybeDecoded::Frame(frame));
-                        }
-                    }
-
-                    self.seen += 1;
-                }
-
-                Ok(MaybeDecoded::None(FrameSize::Unknown))
-            }
+            Ok(None) => Ok(None),
+            Err(_) => unreachable!(),
         }
     }
 }
 
-impl<const N: usize> Encoder<heapless::Vec<u8, N>> for AnyDelimiterCodec<'_, N> {
+impl<const N: usize> Encoder<Vec<u8, N>> for AnyDelimiterCodecOwned<'_, N> {
     type Error = AnyDelimiterEncodeError;
 
-    fn encode(&mut self, item: heapless::Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
-        self.encode_slice(&item, dst)
+    fn encode(&mut self, item: Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        Encoder::encode(&mut self.inner, &item, dst)
     }
 }
-
-#[cfg(test)]
-mod test;

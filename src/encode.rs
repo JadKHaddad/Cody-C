@@ -8,3 +8,14 @@ pub trait Encoder<Item> {
     /// Encodes an item into the provided buffer.
     fn encode(&mut self, item: Item, dst: &mut [u8]) -> Result<usize, Self::Error>;
 }
+
+impl<E, Item> Encoder<Item> for &mut E
+where
+    E: Encoder<Item>,
+{
+    type Error = E::Error;
+
+    fn encode(&mut self, item: Item, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        (*self).encode(item, dst)
+    }
+}
