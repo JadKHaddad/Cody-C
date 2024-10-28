@@ -96,5 +96,9 @@ const _: () = {
         ) -> impl core::future::Future<Output = Result<(), Self::Error>> {
             self.0.write_all(buf)
         }
+
+        fn flush(&mut self) -> impl core::future::Future<Output = Result<(), Self::Error>> {
+            self.0.flush()
+        }
     }
 };
