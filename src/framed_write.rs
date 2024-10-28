@@ -174,7 +174,18 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
                 Ok(_) => {
                     debug!("Wrote. buffer: {:?}", Formatter(&self.state.buffer[..size]));
 
-                    Ok(())
+                    match self.writer.flush().await {
+                        Ok(_) => {
+                            debug!("Flushed");
+
+                            Ok(())
+                        }
+                        Err(err) => {
+                            warn!("Failed to flush");
+
+                            Err(FramedWriteError::IO(err))
+                        }
+                    }
                 }
                 Err(err) => {
                     warn!("Failed to write frame");

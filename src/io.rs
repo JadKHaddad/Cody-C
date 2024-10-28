@@ -34,6 +34,9 @@ pub trait AsyncWrite {
 
     /// Writes all bytes from the provided buffer into the underlying sink returning how many bytes were written.
     fn write_all<'a>(&'a mut self, buf: &'a [u8]) -> impl Future<Output = Result<(), Self::Error>>;
+
+    /// Flush this output stream, ensuring that all intermediately buffered contents reach their destination.
+    fn flush(&mut self) -> impl Future<Output = Result<(), Self::Error>>;
 }
 
 impl AsyncWrite for &mut [u8] {
@@ -44,6 +47,10 @@ impl AsyncWrite for &mut [u8] {
         let (a, b) = core::mem::take(self).split_at_mut(amt);
         a.copy_from_slice(&buf[..amt]);
         *self = b;
+        Ok(())
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }
