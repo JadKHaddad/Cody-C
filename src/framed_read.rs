@@ -580,7 +580,7 @@ mod test {
         error,
         test::init_tracing,
         tokio::Compat,
-        FramedWrite,
+        FramedWrite, LengthCodecOwned,
     };
 
     use super::*;
@@ -629,6 +629,53 @@ mod test {
             }
 
             assert_eq!($expected, collected);
+        };
+    }
+
+    macro_rules! stream_sink {
+        ($encoder:ident, $decoder:ident) => {
+            let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+                heapless::Vec::from_slice(b"Hello").unwrap(),
+                heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+                heapless::Vec::from_slice(b"Hei").unwrap(),
+                heapless::Vec::from_slice(b"sup").unwrap(),
+                heapless::Vec::from_slice(b"Hey").unwrap(),
+            ];
+
+            let (read, write) = tokio::io::duplex(1024);
+
+            tokio::spawn(async move {
+                let mut witer =
+                    FramedWrite::new_with_buffer($encoder, Compat::new(write), [0_u8; 1024]);
+                let sink = witer.sink();
+
+                pin_mut!(sink);
+
+                for item in items {
+                    sink.send(item).await.expect("Must send");
+                }
+            });
+
+            let mut framer = FramedRead::new_with_buffer($decoder, Compat::new(read), [0_u8; 1024]);
+
+            let stream = framer.stream();
+
+            let expected: Vec<heapless::Vec<u8, 32>> = std::vec![
+                heapless::Vec::from_slice(b"Hello").unwrap(),
+                heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+                heapless::Vec::from_slice(b"Hei").unwrap(),
+                heapless::Vec::from_slice(b"sup").unwrap(),
+                heapless::Vec::from_slice(b"Hey").unwrap(),
+            ];
+
+            let collected = stream
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            assert_eq!(expected, collected);
         };
     }
 
@@ -723,52 +770,22 @@ mod test {
     }
 
     #[tokio::test]
-    async fn stream_sink() {
+    async fn stream_sink_lines() {
         init_tracing();
-
-        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
-            heapless::Vec::from_slice(b"Hello").unwrap(),
-            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
-            heapless::Vec::from_slice(b"Hei").unwrap(),
-            heapless::Vec::from_slice(b"sup").unwrap(),
-            heapless::Vec::from_slice(b"Hey").unwrap(),
-        ];
 
         let decoder = LinesCodecOwned::<32>::new();
         let encoder = LinesCodecOwned::<32>::new();
 
-        let (read, write) = tokio::io::duplex(1024);
+        stream_sink!(encoder, decoder);
+    }
 
-        tokio::spawn(async move {
-            let mut witer = FramedWrite::new_with_buffer(encoder, Compat::new(write), [0_u8; 1024]);
-            let sink = witer.sink();
+    #[tokio::test]
+    async fn stream_sink_length() {
+        init_tracing();
 
-            pin_mut!(sink);
+        let decoder = LengthCodecOwned::<32>::new();
+        let encoder = LengthCodecOwned::<32>::new();
 
-            for item in items {
-                sink.send(item).await.expect("Must send");
-            }
-        });
-
-        let mut framer = FramedRead::new_with_buffer(decoder, Compat::new(read), [0_u8; 1024]);
-
-        let stream = framer.stream();
-
-        let expected: Vec<heapless::Vec<u8, 32>> = std::vec![
-            heapless::Vec::from_slice(b"Hello").unwrap(),
-            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
-            heapless::Vec::from_slice(b"Hei").unwrap(),
-            heapless::Vec::from_slice(b"sup").unwrap(),
-            heapless::Vec::from_slice(b"Hey").unwrap(),
-        ];
-
-        let collected = stream
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-
-        assert_eq!(expected, collected);
+        stream_sink!(encoder, decoder);
     }
 }

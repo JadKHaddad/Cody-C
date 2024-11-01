@@ -4,7 +4,7 @@ use core::convert::Infallible;
 
 use heapless::Vec;
 
-use crate::{Decoder, DecoderOwned, Encoder};
+use crate::{trace, Decoder, DecoderOwned, Encoder};
 
 /// A codec that decodes a sequence of bytes with a length prefix into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes with a length prefix.
 #[derive(Debug, Clone, Default)]
@@ -29,12 +29,15 @@ impl<'buf> Decoder<'buf> for LengthCodec {
         }
 
         let len = u32::from_le_bytes([src[0], src[1], src[2], src[3]]) as usize;
+        let size = len + 4;
 
-        if src.len() < len + 4 {
+        trace!("size: {}", size);
+
+        if src.len() < size {
             return Ok(None);
         }
 
-        let item = (&src[4..len + 4], len + 4);
+        let item = (&src[4..size], size);
 
         Ok(Some(item))
     }
@@ -64,6 +67,8 @@ impl Encoder<&[u8]> for LengthCodec {
 
     fn encode(&mut self, item: &[u8], dst: &mut [u8]) -> Result<usize, Self::Error> {
         let size = item.len() + 4;
+
+        trace!("size: {}", size);
 
         if dst.len() < size {
             return Err(LengthEncodeError::BufferTooSmall);
