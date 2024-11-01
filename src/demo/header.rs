@@ -1,14 +1,11 @@
-use zerocopy::{
-    byteorder::little_endian::{U16, U32},
-    FromBytes, Immutable, IntoBytes, KnownLayout,
-};
+use zerocopy::{byteorder::big_endian::U16, FromBytes, Immutable, IntoBytes, KnownLayout};
 
 use super::payload_type::PayloadType;
 
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Debug, Clone)]
 #[repr(C)]
 pub struct Header {
-    packet_length: U32,
+    packet_length: U16,
     raw_payload_type: U16,
 }
 
@@ -17,7 +14,7 @@ impl Header {
         core::mem::size_of::<Header>()
     }
 
-    pub const fn packet_length(&self) -> u32 {
+    pub const fn packet_length(&self) -> u16 {
         self.packet_length.get()
     }
 
@@ -25,7 +22,7 @@ impl Header {
         self.packet_length() as usize
     }
 
-    pub fn set_packet_length(&mut self, length: u32) {
+    pub fn set_packet_length(&mut self, length: u16) {
         self.packet_length.set(length);
     }
 
