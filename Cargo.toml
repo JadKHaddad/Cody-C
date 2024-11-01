@@ -10,7 +10,7 @@ repository = "https://github.com/JadKHaddad/Cody-C"
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
 [features]
-default = ["char-fmt"]
+default = ["char-fmt", "demo"]
 std = []
 tokio = ["dep:tokio"]
 futures-io = ["futures/std"]
@@ -21,9 +21,10 @@ defmt = ["dep:defmt"]
 pretty-hex-fmt = []
 char-fmt = []
 buffer-early-shift = []
+demo = ["dep:zerocopy", "dep:serde", "dep:serde-json-core", "dep:derive_more"]
 
 [dependencies]
-tokio = { version = "1.37.0", optional = true, default-features = false, features = [
+tokio = { version = "1.41.0", optional = true, default-features = false, features = [
     "io-util",
 ] }
 embedded-io-async = { version = "0.6.1", optional = true }
@@ -32,6 +33,15 @@ tracing = { version = "0.1.40", default-features = false, optional = true }
 defmt = { version = "0.3.6", default-features = false, optional = true }
 futures = { version = "0.3.31", default-features = false }
 heapless = { version = "0.8.0", default-features = false }
+zerocopy = { version = "0.8.1", features = ["derive"], optional = true }
+serde = { version = "1.0.214", features = [
+    "derive",
+], default-features = false, optional = true }
+serde-json-core = { version = "0.6.0", optional = true }
+derive_more = { version = "1", default-features = false, features = [
+    "from",
+], optional = true }
+
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
