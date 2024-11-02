@@ -581,7 +581,7 @@ mod test {
         error,
         test::init_tracing,
         tokio::Compat,
-        BincodeCodecOwned, FramedWrite, LengthCodecOwned,
+        AnyDelimiterCodecOwned, BincodeCodecOwned, FramedWrite, LengthCodec, LengthCodecOwned,
     };
 
     use super::*;
@@ -671,12 +671,18 @@ mod test {
         init_tracing();
 
         let items: &[&[u8]] = &[
-            b"Hello\n",
-            b"Hello, world!\n",
-            b"Hei\r\n",
-            b"sup\n",
-            b"Hey\r\n",
-            b"How are y",
+            b"Hel",
+            b"lo\n",
+            b"Hell",
+            b"o, world!\n",
+            b"H",
+            b"ei\r\n",
+            b"sup",
+            b"\n",
+            b"Hey\r",
+            b"\n",
+            b"How ",
+            b"are y",
         ];
 
         let decoder = LinesCodec::new();
@@ -757,6 +763,52 @@ mod test {
     }
 
     #[tokio::test]
+    async fn length() {
+        init_tracing();
+
+        let items: &[&[u8]] = &[
+            b"\x00\x00\x00\x05Hel",
+            b"lo\x00\x00",
+            b"\x00\x0DHell",
+            b"o, world!",
+            b"\x00",
+            b"\x00\x00\x03H",
+            b"ei\x00\x00",
+            b"\x00",
+            b"\x03sup",
+            b"\x00\x00",
+            b"\x00\x03Hey",
+            b"\x00\x00",
+            b"\x00\x0CHow are y",
+        ];
+
+        let decoder = LengthCodec::new();
+
+        let expected: &[&[u8]] = &[];
+        do_test!(items, expected, decoder, 1, BufferTooSmall);
+        do_test!(items, expected, decoder, 1, 1, BufferTooSmall);
+        do_test!(items, expected, decoder, 1, 2, BufferTooSmall);
+        do_test!(items, expected, decoder, 1, 4, BufferTooSmall);
+
+        do_test!(items, expected, decoder, 2, BufferTooSmall);
+        do_test!(items, expected, decoder, 2, 1, BufferTooSmall);
+        do_test!(items, expected, decoder, 2, 2, BufferTooSmall);
+        do_test!(items, expected, decoder, 2, 4, BufferTooSmall);
+
+        do_test!(items, expected, decoder, 4, BufferTooSmall);
+        do_test!(items, expected, decoder, 4, 1, BufferTooSmall);
+        do_test!(items, expected, decoder, 4, 2, BufferTooSmall);
+        do_test!(items, expected, decoder, 4, 4, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"Hello"];
+        do_test!(items, expected, decoder, 12, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"Hello", b"Hello, world!", b"Hei", b"sup", b"Hey"];
+        do_test!(items, expected, decoder, 32, BytesRemainingOnStream);
+        do_test!(items, expected, decoder);
+    }
+
+    #[tokio::test]
     async fn stream_sink_lines() {
         init_tracing();
 
@@ -770,6 +822,24 @@ mod test {
 
         let decoder = LinesCodecOwned::<32>::new();
         let encoder = LinesCodecOwned::<32>::new();
+
+        stream_sink!(encoder, decoder, items);
+    }
+
+    #[tokio::test]
+    async fn stream_sink_any() {
+        init_tracing();
+
+        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+            heapless::Vec::from_slice(b"Hello").unwrap(),
+            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"Hei").unwrap(),
+            heapless::Vec::from_slice(b"sup").unwrap(),
+            heapless::Vec::from_slice(b"Hey").unwrap(),
+        ];
+
+        let decoder = AnyDelimiterCodecOwned::<32>::new(b"###");
+        let encoder = AnyDelimiterCodecOwned::<32>::new(b"###");
 
         stream_sink!(encoder, decoder, items);
     }
