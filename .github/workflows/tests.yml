@@ -84,8 +84,8 @@ jobs:
       - name: Clippy -- tracing
         run: cargo clippy --no-default-features --features="tracing" -- -D warnings
 
-      - name: Clippy -- binode
-        run: cargo clippy --no-default-features --features="binode" -- -D warnings
+      - name: Clippy -- bincode
+        run: cargo clippy --no-default-features --features="bincode" -- -D warnings
 
       # Test
 

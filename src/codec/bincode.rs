@@ -41,7 +41,7 @@ pub enum BincodeDecodeError {
 impl defmt::Format for BincodeDecodeError {
     fn format(&self, f: defmt::Formatter) {
         match self {
-            Self::Decode(err) => f.error().field("Decode", err),
+            Self::Decode(_) => defmt::write!(f, "Decode error"),
         }
     }
 }
@@ -98,9 +98,9 @@ pub enum BincodeEncodeError {
 impl defmt::Format for BincodeEncodeError {
     fn format(&self, f: defmt::Formatter) {
         match self {
-            Self::BufferTooSmall => f.error().field("Buffer too small", &true),
-            Self::Encode(err) => f.error().field("Encode", err),
-            Self::PayloadTooLarge => f.error().field("Payload too large", &true),
+            Self::BufferTooSmall => defmt::write!(f, "Buffer too small"),
+            Self::Encode(_) => defmt::write!(f, "Encode error"),
+            Self::PayloadTooLarge => defmt::write!(f, "Payload too large"),
         }
     }
 }

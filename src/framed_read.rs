@@ -567,7 +567,6 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
 mod test {
     extern crate std;
 
-    use core::str::FromStr;
     use std::vec::Vec;
 
     use futures::{pin_mut, SinkExt, StreamExt};
@@ -581,7 +580,7 @@ mod test {
         error,
         test::init_tracing,
         tokio::Compat,
-        AnyDelimiterCodecOwned, BincodeCodecOwned, FramedWrite, LengthCodec, LengthCodecOwned,
+        AnyDelimiterCodecOwned, FramedWrite, LengthCodec, LengthCodecOwned,
     };
 
     use super::*;
@@ -866,8 +865,11 @@ mod test {
     #[tokio::test]
     #[cfg(feature = "bincode")]
     async fn stream_sink_bincode() {
-        use crate::test::bincode::BincodeMessage;
+        use core::str::FromStr;
+
         use bincode::serde::Compat as BincodeSerdeCompat;
+
+        use crate::{test::bincode::BincodeMessage, BincodeCodecOwned};
 
         init_tracing();
 
