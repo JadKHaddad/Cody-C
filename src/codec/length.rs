@@ -1,10 +1,13 @@
-//! Length codecs for encoding and decoding bytes with a length prefix.
+//! Length codec for encoding and decoding bytes with a length prefix.
 
 use core::convert::Infallible;
 
 use heapless::Vec;
 
 use crate::{trace, Decoder, DecoderOwned, Encoder};
+
+/// The size of the length prefix in bytes.
+pub const SIZE_OF_LENGTH: usize = core::mem::size_of::<u32>();
 
 /// A codec that decodes a sequence of bytes with a length prefix into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes with a length prefix.
 #[derive(Debug, Clone, Default)]
@@ -24,12 +27,12 @@ impl<'buf> Decoder<'buf> for LengthCodec {
     type Error = Infallible;
 
     fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
-        if src.len() < 4 {
+        if src.len() < SIZE_OF_LENGTH {
             return Ok(None);
         }
 
-        let len = u32::from_le_bytes([src[0], src[1], src[2], src[3]]) as usize;
-        let size = len + 4;
+        let len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
+        let size = len + SIZE_OF_LENGTH;
 
         trace!("size: {}", size);
 
@@ -37,7 +40,7 @@ impl<'buf> Decoder<'buf> for LengthCodec {
             return Ok(None);
         }
 
-        let item = (&src[4..size], size);
+        let item = (&src[SIZE_OF_LENGTH..size], size);
 
         Ok(Some(item))
     }
@@ -49,12 +52,15 @@ impl<'buf> Decoder<'buf> for LengthCodec {
 pub enum LengthEncodeError {
     /// The input buffer is too small to fit the encoded line.
     BufferTooSmall,
+    /// The payload size is greater than u32::MAX.
+    PayloadTooLarge,
 }
 
 impl core::fmt::Display for LengthEncodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::BufferTooSmall => write!(f, "buffer too small"),
+            Self::BufferTooSmall => write!(f, "Buffer too small"),
+            Self::PayloadTooLarge => write!(f, "Payload too large"),
         }
     }
 }
@@ -66,7 +72,11 @@ impl Encoder<&[u8]> for LengthCodec {
     type Error = LengthEncodeError;
 
     fn encode(&mut self, item: &[u8], dst: &mut [u8]) -> Result<usize, Self::Error> {
-        let size = item.len() + 4;
+        if item.len() > u32::MAX as usize {
+            return Err(LengthEncodeError::PayloadTooLarge);
+        }
+
+        let size = item.len() + SIZE_OF_LENGTH;
 
         trace!("size: {}", size);
 
@@ -74,8 +84,8 @@ impl Encoder<&[u8]> for LengthCodec {
             return Err(LengthEncodeError::BufferTooSmall);
         }
 
-        dst[0..4].copy_from_slice(&(item.len() as u32).to_le_bytes());
-        dst[4..size].copy_from_slice(item);
+        dst[0..SIZE_OF_LENGTH].copy_from_slice(&(item.len() as u32).to_be_bytes());
+        dst[SIZE_OF_LENGTH..size].copy_from_slice(item);
 
         Ok(size)
     }

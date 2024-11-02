@@ -10,11 +10,12 @@ repository = "https://github.com/JadKHaddad/Cody-C"
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
 [features]
-default = ["char-fmt", "demo", "tracing"]
-std = []
+default = ["char-fmt", "demo", "tracing", "bincode"]
+std = ["bincode/std", "futures/std"]
 tokio = ["dep:tokio"]
 futures-io = ["futures/std"]
 embedded-io-async = ["dep:embedded-io-async"]
+bincode = ["dep:bincode"]
 log = ["dep:log"]
 tracing = ["dep:tracing"]
 defmt = ["dep:defmt"]
@@ -33,6 +34,8 @@ tracing = { version = "0.1.40", default-features = false, optional = true }
 defmt = { version = "0.3.6", default-features = false, optional = true }
 futures = { version = "0.3.31", default-features = false }
 heapless = { version = "0.8.0", default-features = false }
+bincode = { version = "2.0.0-rc.3", default-features = false, optional = true }
+
 zerocopy = { version = "0.8.1", features = ["derive"], optional = true }
 serde = { version = "1.0.214", features = [
     "derive",
@@ -47,6 +50,10 @@ derive_more = { version = "1", default-features = false, features = [
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+bincode = { version = "2.0.0-rc.3", default-features = false, features = [
+    "derive",
+    "std",
+] }
 
 [package.metadata.docs.rs]
 all-features = true
