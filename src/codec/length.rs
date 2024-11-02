@@ -4,7 +4,7 @@ use core::convert::Infallible;
 
 use heapless::Vec;
 
-use crate::{trace, Decoder, DecoderOwned, Encoder};
+use crate::{Decoder, DecoderOwned, Encoder};
 
 /// The size of the length prefix in bytes.
 pub const SIZE_OF_LENGTH: usize = core::mem::size_of::<u32>();
@@ -33,8 +33,6 @@ impl<'buf> Decoder<'buf> for LengthCodec {
 
         let len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
         let size = len + SIZE_OF_LENGTH;
-
-        trace!("size: {}", size);
 
         if src.len() < size {
             return Ok(None);
@@ -77,8 +75,6 @@ impl Encoder<&[u8]> for LengthCodec {
         }
 
         let size = item.len() + SIZE_OF_LENGTH;
-
-        trace!("size: {}", size);
 
         if dst.len() < size {
             return Err(LengthEncodeError::BufferTooSmall);
