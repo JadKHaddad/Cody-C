@@ -7,45 +7,84 @@ pub fn init_tracing() {
     .ok();
 }
 
-#[cfg(feature = "bincode")]
-pub mod bincode {
-    use bincode::serde::Compat as BincodeSerdeCompat;
+#[macro_export]
+macro_rules! framed_read {
+    ($items:ident, $expected:ident, $decoder:ident) => {
+        framed_read!($items, $expected, $decoder, 1024, 1024);
+    };
+    ($items:ident, $expected:ident, $decoder:ident, $buffer_size:literal) => {
+        framed_read!($items, $expected, $decoder, $buffer_size, 1024);
+    };
+    ($items:ident, $expected:ident, $decoder:ident, $buffer_size:literal $(, $err:ident )?) => {
+        framed_read!($items, $expected, $decoder, $buffer_size, 1024 $(, $err )?);
+    };
+    ($items:ident, $expected:ident, $decoder:ident, $buffer_size:literal, $duplex_max_size:literal $(, $err:ident )?) => {
+        let decoder_clone = $decoder.clone();
+        let mut collected = Vec::<Vec<u8>>::new();
 
-    #[derive(bincode::Encode, bincode::Decode)]
-    pub enum BincodeMessage {
-        Numbers(u32, u32, u32),
-        String(BincodeSerdeCompat<heapless::String<32>>),
-        Vec(BincodeSerdeCompat<heapless::Vec<u8, 32>>),
-    }
+        let (read, mut write) = tokio::io::duplex($duplex_max_size);
 
-    impl core::fmt::Debug for BincodeMessage {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            match self {
-                Self::Numbers(a, b, c) => write!(f, "Numbers({}, {}, {})", a, b, c),
-                Self::String(s) => write!(f, "String({})", s.0),
-                Self::Vec(v) => write!(f, "Vec({:?})", v.0),
+        tokio::spawn(async move {
+            for item in $items {
+                write.write_all(item.as_ref()).await.expect("Must write");
+            }
+        });
+
+        let mut framer =
+            FramedRead::new_with_buffer(decoder_clone, Compat::new(read), [0_u8; $buffer_size]);
+
+        loop {
+            match framer.read_frame().await {
+                Ok(Some(item)) => {
+                    collected.push(item.into());
+                }
+                Ok(None) => {}
+                Err(_err) => {
+                    error!("Error: {:?}", _err);
+
+                    $(
+                        assert!(matches!(_err, FramedReadError::$err));
+                    )?
+
+                    break;
+                }
             }
         }
-    }
 
-    impl Clone for BincodeMessage {
-        fn clone(&self) -> Self {
-            match self {
-                Self::Numbers(a, b, c) => Self::Numbers(*a, *b, *c),
-                Self::String(s) => Self::String(BincodeSerdeCompat(s.0.clone())),
-                Self::Vec(v) => Self::Vec(BincodeSerdeCompat(v.0.clone())),
-            }
-        }
-    }
+        assert_eq!($expected, collected);
+    };
+}
 
-    impl PartialEq for BincodeMessage {
-        fn eq(&self, other: &Self) -> bool {
-            match (self, other) {
-                (Self::Numbers(a, b, c), Self::Numbers(x, y, z)) => a == x && b == y && c == z,
-                (Self::String(s), Self::String(t)) => s.0 == t.0,
-                (Self::Vec(v), Self::Vec(w)) => v.0 == w.0,
-                _ => false,
+#[macro_export]
+macro_rules! sink_stream {
+    ($encoder:ident, $decoder:ident, $items:ident) => {
+        let items_clone = $items.clone();
+
+        let (read, write) = tokio::io::duplex(1024);
+
+        tokio::spawn(async move {
+            let mut witer =
+                FramedWrite::new_with_buffer($encoder, Compat::new(write), [0_u8; 1024]);
+            let sink = witer.sink();
+
+            pin_mut!(sink);
+
+            for item in items_clone {
+                sink.send(item).await.expect("Must send");
             }
-        }
-    }
+        });
+
+        let mut framer = FramedRead::new_with_buffer($decoder, Compat::new(read), [0_u8; 1024]);
+
+        let stream = framer.stream();
+
+        let collected = stream
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert_eq!($items, collected);
+    };
 }

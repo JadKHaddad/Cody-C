@@ -211,7 +211,7 @@ where
 
 #[cfg(all(feature = "std", feature = "tokio"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "std", feature = "tokio"))))]
-mod tokio {
+mod tokio_util {
     //! Tokio codec implementation for [`BincodeCodec`].
 
     use bincode::{
@@ -342,5 +342,81 @@ mod tokio {
 
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use std::vec::Vec;
+
+    use bincode::serde::Compat as BincodeSerdeCompat;
+    use futures::{pin_mut, SinkExt, StreamExt};
+
+    use crate::{sink_stream, test::init_tracing, tokio::Compat, FramedRead, FramedWrite};
+
+    use super::*;
+
+    #[derive(bincode::Encode, bincode::Decode)]
+    pub enum BincodeMessage {
+        Numbers(u32, u32, u32),
+        String(BincodeSerdeCompat<heapless::String<32>>),
+        Vec(BincodeSerdeCompat<heapless::Vec<u8, 32>>),
+    }
+
+    impl core::fmt::Debug for BincodeMessage {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                Self::Numbers(a, b, c) => write!(f, "Numbers({}, {}, {})", a, b, c),
+                Self::String(s) => write!(f, "String({})", s.0),
+                Self::Vec(v) => write!(f, "Vec({:?})", v.0),
+            }
+        }
+    }
+
+    impl Clone for BincodeMessage {
+        fn clone(&self) -> Self {
+            match self {
+                Self::Numbers(a, b, c) => Self::Numbers(*a, *b, *c),
+                Self::String(s) => Self::String(BincodeSerdeCompat(s.0.clone())),
+                Self::Vec(v) => Self::Vec(BincodeSerdeCompat(v.0.clone())),
+            }
+        }
+    }
+
+    impl PartialEq for BincodeMessage {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Self::Numbers(a, b, c), Self::Numbers(x, y, z)) => a == x && b == y && c == z,
+                (Self::String(s), Self::String(t)) => s.0 == t.0,
+                (Self::Vec(v), Self::Vec(w)) => v.0 == w.0,
+                _ => false,
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn sink_stream() {
+        use core::str::FromStr;
+
+        use bincode::serde::Compat as BincodeSerdeCompat;
+
+        init_tracing();
+
+        let items: Vec<BincodeMessage> = std::vec![
+            BincodeMessage::Numbers(1, 2, 3),
+            BincodeMessage::String(BincodeSerdeCompat(
+                heapless::String::from_str("Hello").unwrap()
+            )),
+            BincodeMessage::Vec(BincodeSerdeCompat(
+                heapless::Vec::from_slice(b"Hello, world!").unwrap()
+            )),
+        ];
+
+        let decoder = BincodeCodecOwned::<BincodeMessage>::new();
+        let encoder = BincodeCodecOwned::<BincodeMessage>::new();
+
+        sink_stream!(encoder, decoder, items);
     }
 }
