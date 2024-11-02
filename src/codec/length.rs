@@ -1,15 +1,13 @@
-//! Length codec for encoding and decoding bytes with a length prefix.
-
-use core::convert::Infallible;
+//! Length codec for encoding and decoding bytes with a payload length prefix.
 
 use heapless::Vec;
 
 use crate::{Decoder, DecoderOwned, Encoder};
 
-/// The size of the length prefix in bytes.
+/// The size of the payload length prefix in bytes.
 pub const SIZE_OF_LENGTH: usize = core::mem::size_of::<u32>();
 
-/// A codec that decodes a sequence of bytes with a length prefix into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes with a length prefix.
+/// A codec that decodes a sequence of bytes with a payload length prefix into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes with a payload length prefix.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LengthCodec;
@@ -22,34 +20,68 @@ impl LengthCodec {
     }
 }
 
+/// An error that can occur when decoding sequence of bytes with a payload length prefix into a sequence of bytes.
+#[derive(Debug)]
+pub enum LengthDecodeError {
+    /// Payload length is zero.
+    ZeroPayloadLength,
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for LengthDecodeError {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Self::InvalidPacketSize => f.error().field("Zero payload length", &true),
+        }
+    }
+}
+
+impl core::fmt::Display for LengthDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ZeroPayloadLength => write!(f, "Zero payload length"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for LengthDecodeError {}
+
 impl<'buf> Decoder<'buf> for LengthCodec {
     type Item = &'buf [u8];
-    type Error = Infallible;
+    type Error = LengthDecodeError;
 
     fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         if src.len() < SIZE_OF_LENGTH {
             return Ok(None);
         }
 
-        let len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
-        let size = len + SIZE_OF_LENGTH;
+        let payload_len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
 
-        if src.len() < size {
+        if payload_len == 0 {
+            return Err(LengthDecodeError::ZeroPayloadLength);
+        }
+
+        let packet_len = payload_len + SIZE_OF_LENGTH;
+
+        if src.len() < packet_len {
             return Ok(None);
         }
 
-        let item = (&src[SIZE_OF_LENGTH..size], size);
+        let item = (&src[SIZE_OF_LENGTH..packet_len], packet_len);
 
         Ok(Some(item))
     }
 }
 
-/// An error that can occur when encoding a sequence of bytes into a sequence of bytes with a length prefix.
+/// An error that can occur when encoding a sequence of bytes into a sequence of bytes with a payload length prefix.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LengthEncodeError {
     /// The input buffer is too small to fit the encoded line.
     BufferTooSmall,
+    /// Payload length is zero.
+    ZeroPayloadLength,
     /// The payload size is greater than u32::MAX.
     PayloadTooLarge,
 }
@@ -58,6 +90,7 @@ impl core::fmt::Display for LengthEncodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::BufferTooSmall => write!(f, "Buffer too small"),
+            Self::ZeroPayloadLength => write!(f, "Zero payload length"),
             Self::PayloadTooLarge => write!(f, "Payload too large"),
         }
     }
@@ -70,20 +103,26 @@ impl Encoder<&[u8]> for LengthCodec {
     type Error = LengthEncodeError;
 
     fn encode(&mut self, item: &[u8], dst: &mut [u8]) -> Result<usize, Self::Error> {
-        if item.len() > u32::MAX as usize {
+        let payload_len = item.len();
+
+        if payload_len == 0 {
+            return Err(LengthEncodeError::ZeroPayloadLength);
+        }
+
+        if payload_len > u32::MAX as usize {
             return Err(LengthEncodeError::PayloadTooLarge);
         }
 
-        let size = item.len() + SIZE_OF_LENGTH;
+        let packet_len = payload_len + SIZE_OF_LENGTH;
 
-        if dst.len() < size {
+        if dst.len() < packet_len {
             return Err(LengthEncodeError::BufferTooSmall);
         }
 
         dst[0..SIZE_OF_LENGTH].copy_from_slice(&(item.len() as u32).to_be_bytes());
-        dst[SIZE_OF_LENGTH..size].copy_from_slice(item);
+        dst[SIZE_OF_LENGTH..packet_len].copy_from_slice(item);
 
-        Ok(size)
+        Ok(packet_len)
     }
 }
 
