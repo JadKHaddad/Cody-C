@@ -567,6 +567,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
 mod test {
     extern crate std;
 
+    use core::str::FromStr;
     use std::vec::Vec;
 
     use futures::{pin_mut, SinkExt, StreamExt};
@@ -580,7 +581,7 @@ mod test {
         error,
         test::init_tracing,
         tokio::Compat,
-        FramedWrite, LengthCodecOwned,
+        BincodeCodecOwned, FramedWrite, LengthCodecOwned,
     };
 
     use super::*;
@@ -633,14 +634,8 @@ mod test {
     }
 
     macro_rules! stream_sink {
-        ($encoder:ident, $decoder:ident) => {
-            let items: Vec<heapless::Vec<u8, 32>> = std::vec![
-                heapless::Vec::from_slice(b"Hello").unwrap(),
-                heapless::Vec::from_slice(b"Hello, world!").unwrap(),
-                heapless::Vec::from_slice(b"Hei").unwrap(),
-                heapless::Vec::from_slice(b"sup").unwrap(),
-                heapless::Vec::from_slice(b"Hey").unwrap(),
-            ];
+        ($encoder:ident, $decoder:ident, $items:ident) => {
+            let items_clone = $items.clone();
 
             let (read, write) = tokio::io::duplex(1024);
 
@@ -651,7 +646,7 @@ mod test {
 
                 pin_mut!(sink);
 
-                for item in items {
+                for item in items_clone {
                     sink.send(item).await.expect("Must send");
                 }
             });
@@ -660,14 +655,6 @@ mod test {
 
             let stream = framer.stream();
 
-            let expected: Vec<heapless::Vec<u8, 32>> = std::vec![
-                heapless::Vec::from_slice(b"Hello").unwrap(),
-                heapless::Vec::from_slice(b"Hello, world!").unwrap(),
-                heapless::Vec::from_slice(b"Hei").unwrap(),
-                heapless::Vec::from_slice(b"sup").unwrap(),
-                heapless::Vec::from_slice(b"Hey").unwrap(),
-            ];
-
             let collected = stream
                 .collect::<Vec<_>>()
                 .await
@@ -675,7 +662,7 @@ mod test {
                 .flatten()
                 .collect::<Vec<_>>();
 
-            assert_eq!(expected, collected);
+            assert_eq!($items, collected);
         };
     }
 
@@ -773,19 +760,95 @@ mod test {
     async fn stream_sink_lines() {
         init_tracing();
 
+        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+            heapless::Vec::from_slice(b"Hello").unwrap(),
+            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"Hei").unwrap(),
+            heapless::Vec::from_slice(b"sup").unwrap(),
+            heapless::Vec::from_slice(b"Hey").unwrap(),
+        ];
+
         let decoder = LinesCodecOwned::<32>::new();
         let encoder = LinesCodecOwned::<32>::new();
 
-        stream_sink!(encoder, decoder);
+        stream_sink!(encoder, decoder, items);
     }
 
     #[tokio::test]
     async fn stream_sink_length() {
         init_tracing();
 
+        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+            heapless::Vec::from_slice(b"Hello").unwrap(),
+            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"Hei").unwrap(),
+            heapless::Vec::from_slice(b"sup").unwrap(),
+            heapless::Vec::from_slice(b"Hey").unwrap(),
+        ];
+
         let decoder = LengthCodecOwned::<32>::new();
         let encoder = LengthCodecOwned::<32>::new();
 
-        stream_sink!(encoder, decoder);
+        stream_sink!(encoder, decoder, items);
+    }
+
+    #[tokio::test]
+    async fn stream_sink_bincode() {
+        use bincode::serde::Compat as BincodeSerdeCompat;
+
+        #[derive(bincode::Encode, bincode::Decode)]
+        enum Message {
+            Numbers(u32, u32, u32),
+            String(BincodeSerdeCompat<heapless::String<32>>),
+            Vec(BincodeSerdeCompat<heapless::Vec<u8, 32>>),
+        }
+
+        impl core::fmt::Debug for Message {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                match self {
+                    Self::Numbers(a, b, c) => write!(f, "Numbers({}, {}, {})", a, b, c),
+                    Self::String(s) => write!(f, "String({})", s.0),
+                    Self::Vec(v) => write!(f, "Vec({:?})", v.0),
+                }
+            }
+        }
+
+        impl Clone for Message {
+            fn clone(&self) -> Self {
+                match self {
+                    Self::Numbers(a, b, c) => Self::Numbers(*a, *b, *c),
+                    Self::String(s) => Self::String(BincodeSerdeCompat(s.0.clone())),
+                    Self::Vec(v) => Self::Vec(BincodeSerdeCompat(v.0.clone())),
+                }
+            }
+        }
+
+        impl PartialEq for Message {
+            fn eq(&self, other: &Self) -> bool {
+                match (self, other) {
+                    (Self::Numbers(a, b, c), Self::Numbers(x, y, z)) => a == x && b == y && c == z,
+                    (Self::String(s), Self::String(t)) => s.0 == t.0,
+                    (Self::Vec(v), Self::Vec(w)) => v.0 == w.0,
+                    _ => false,
+                }
+            }
+        }
+
+        init_tracing();
+
+        let items: Vec<Message> = std::vec![
+            Message::Numbers(1, 2, 3),
+            Message::String(BincodeSerdeCompat(
+                heapless::String::from_str("Hello").unwrap()
+            )),
+            Message::Vec(BincodeSerdeCompat(
+                heapless::Vec::from_slice(b"Hello, world!").unwrap()
+            )),
+        ];
+
+        let decoder = BincodeCodecOwned::<Message>::new();
+        let encoder = BincodeCodecOwned::<Message>::new();
+
+        stream_sink!(encoder, decoder, items);
     }
 }

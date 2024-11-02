@@ -151,11 +151,11 @@ where
 /// An owned [`BincodeCodec`].
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct BincodeCodecOwned<const N: usize, D> {
+pub struct BincodeCodecOwned<D> {
     inner: BincodeCodec<D>,
 }
 
-impl<const N: usize, D> BincodeCodecOwned<N, D> {
+impl<D> BincodeCodecOwned<D> {
     /// Creates a new [`BincodeCodecOwned`].
     #[inline]
     pub const fn new() -> Self {
@@ -165,13 +165,13 @@ impl<const N: usize, D> BincodeCodecOwned<N, D> {
     }
 }
 
-impl<const N: usize, D> From<BincodeCodec<D>> for BincodeCodecOwned<N, D> {
+impl<D> From<BincodeCodec<D>> for BincodeCodecOwned<D> {
     fn from(inner: BincodeCodec<D>) -> Self {
         Self { inner }
     }
 }
 
-impl<const N: usize, D> DecoderOwned for BincodeCodecOwned<N, D>
+impl<D> DecoderOwned for BincodeCodecOwned<D>
 where
     D: Decode,
 {
@@ -198,7 +198,7 @@ where
     }
 }
 
-impl<const N: usize, D> Encoder<D> for BincodeCodecOwned<N, D>
+impl<D> Encoder<D> for BincodeCodecOwned<D>
 where
     D: Encode,
 {

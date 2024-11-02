@@ -37,9 +37,9 @@ heapless = { version = "0.8.0", default-features = false }
 bincode = { version = "2.0.0-rc.3", default-features = false, optional = true }
 
 zerocopy = { version = "0.8.1", features = ["derive"], optional = true }
-serde = { version = "1.0.214", features = [
+serde = { version = "1.0.214", default-features = false, features = [
     "derive",
-], default-features = false, optional = true }
+], optional = true }
 serde-json-core = { version = "0.6.0", optional = true }
 derive_more = { version = "1", default-features = false, features = [
     "from",
@@ -50,9 +50,12 @@ derive_more = { version = "1", default-features = false, features = [
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+heapless = { version = "0.8.0", default-features = false, features = ["serde"] }
+serde = { version = "1.0.214", default-features = false, features = ["derive"] }
 bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "derive",
     "std",
+    "serde",
 ] }
 
 [package.metadata.docs.rs]
