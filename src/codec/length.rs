@@ -1,5 +1,7 @@
 //! Length codec for encoding and decoding bytes with a payload length prefix.
 
+use core::convert::Infallible;
+
 use heapless::Vec;
 
 use crate::{Decoder, DecoderOwned, Encoder};
@@ -20,36 +22,9 @@ impl LengthCodec {
     }
 }
 
-/// An error that can occur when decoding sequence of bytes with a payload length prefix into a sequence of bytes.
-#[derive(Debug)]
-pub enum LengthDecodeError {
-    /// Payload length is zero.
-    ZeroPayloadLength,
-}
-
-#[cfg(feature = "defmt")]
-impl defmt::Format for LengthDecodeError {
-    fn format(&self, f: defmt::Formatter) {
-        match self {
-            Self::InvalidPacketSize => f.error().field("Zero payload length", &true),
-        }
-    }
-}
-
-impl core::fmt::Display for LengthDecodeError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::ZeroPayloadLength => write!(f, "Zero payload length"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for LengthDecodeError {}
-
 impl<'buf> Decoder<'buf> for LengthCodec {
     type Item = &'buf [u8];
-    type Error = LengthDecodeError;
+    type Error = Infallible;
 
     fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         if src.len() < SIZE_OF_LENGTH {
@@ -57,10 +32,6 @@ impl<'buf> Decoder<'buf> for LengthCodec {
         }
 
         let payload_len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
-
-        if payload_len == 0 {
-            return Err(LengthDecodeError::ZeroPayloadLength);
-        }
 
         let packet_len = payload_len + SIZE_OF_LENGTH;
 
@@ -104,10 +75,6 @@ impl Encoder<&[u8]> for LengthCodec {
 
     fn encode(&mut self, item: &[u8], dst: &mut [u8]) -> Result<usize, Self::Error> {
         let payload_len = item.len();
-
-        if payload_len == 0 {
-            return Err(LengthEncodeError::ZeroPayloadLength);
-        }
 
         if payload_len > u32::MAX as usize {
             return Err(LengthEncodeError::PayloadTooLarge);

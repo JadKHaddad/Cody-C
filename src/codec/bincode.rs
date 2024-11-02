@@ -9,7 +9,7 @@ use bincode::{
 
 use crate::{Decoder, DecoderOwned, Encoder, SIZE_OF_LENGTH};
 
-use super::{LengthCodec, LengthDecodeError};
+use super::LengthCodec;
 
 /// A codec that decodes a sequence of bytes with a payload length prefix into a bincode data structure and encodes a bincode data structure into a sequence of bytes with a payload length prefix.
 #[derive(Debug, Clone, Default)]
@@ -33,8 +33,6 @@ impl<D> BincodeCodec<D> {
 /// An error that can occur when decoding a sequence of bytes with a payload length prefix into a bincode data structure.
 #[derive(Debug)]
 pub enum BincodeDecodeError {
-    /// A LengthDecode error occurred.
-    Length(LengthDecodeError),
     /// A Bincode error occurred.
     Decode(DecodeError),
 }
@@ -43,7 +41,6 @@ pub enum BincodeDecodeError {
 impl defmt::Format for BincodeDecodeError {
     fn format(&self, f: defmt::Formatter) {
         match self {
-            Self::Length(err) => f.error().field("Length", &true),
             Self::Decode(err) => f.error().field("Decode", err),
         }
     }
@@ -52,7 +49,6 @@ impl defmt::Format for BincodeDecodeError {
 impl core::fmt::Display for BincodeDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Length(err) => write!(f, "Length error: {}", err),
             Self::Decode(err) => write!(f, "Decode error: {}", err),
         }
     }
@@ -72,7 +68,7 @@ where
         match self
             .length_codec
             .decode(src)
-            .map_err(BincodeDecodeError::Length)?
+            .expect("<LengthCodec as Decoder>::Error must be infallible")
         {
             None => Ok(None),
             Some((bytes, size)) => {
@@ -94,8 +90,6 @@ pub enum BincodeEncodeError {
     BufferTooSmall,
     /// A Bincode error occurred.
     Encode(EncodeError),
-    /// Payload length is zero.
-    ZeroPayloadLength,
     /// The payload size is greater than u32::MAX.
     PayloadTooLarge,
 }
@@ -106,7 +100,6 @@ impl defmt::Format for BincodeEncodeError {
         match self {
             Self::BufferTooSmall => f.error().field("Buffer too small", &true),
             Self::Encode(err) => f.error().field("Encode", err),
-            Self::ZeroPayloadLength => f.error().field("Zero payload length", &true),
             Self::PayloadTooLarge => f.error().field("Payload too large", &true),
         }
     }
@@ -117,7 +110,6 @@ impl core::fmt::Display for BincodeEncodeError {
         match self {
             Self::BufferTooSmall => write!(f, "Buffer too small"),
             Self::Encode(err) => write!(f, "Encode error: {}", err),
-            Self::ZeroPayloadLength => write!(f, "Zero payload length"),
             Self::PayloadTooLarge => write!(f, "Payload too large"),
         }
     }
@@ -143,10 +135,6 @@ where
             bincode::config::standard(),
         )
         .map_err(BincodeEncodeError::Encode)?;
-
-        if payload_len == 0 {
-            return Err(BincodeEncodeError::ZeroPayloadLength);
-        }
 
         if payload_len > u32::MAX as usize {
             return Err(BincodeEncodeError::PayloadTooLarge);
@@ -244,8 +232,6 @@ mod tokio {
     pub enum BincodeDecodeError {
         /// An IO error occurred.
         IO(std::io::Error),
-        /// Payload length is zero.
-        ZeroPayloadLength,
         /// A Bincode error occurred.
         Decode(DecodeError),
     }
@@ -260,7 +246,6 @@ mod tokio {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             match self {
                 Self::IO(err) => write!(f, "IO error: {}", err),
-                Self::ZeroPayloadLength => write!(f, "Zero payload length"),
                 Self::Decode(err) => write!(f, "Decode error: {}", err),
             }
         }
@@ -281,10 +266,6 @@ mod tokio {
             }
 
             let payload_len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
-
-            if payload_len == 0 {
-                return Err(BincodeDecodeError::ZeroPayloadLength);
-            }
 
             let packet_len = payload_len + SIZE_OF_LENGTH;
 
@@ -313,8 +294,6 @@ mod tokio {
         IO(std::io::Error),
         /// A Bincode error occurred.
         Encode(EncodeError),
-        /// Payload length is zero.
-        ZeroPayloadLength,
         /// The payload size is greater than u32::MAX.
         PayloadTooLarge,
     }
@@ -330,7 +309,6 @@ mod tokio {
             match self {
                 Self::IO(err) => write!(f, "IO error: {}", err),
                 Self::Encode(err) => write!(f, "Encode error: {}", err),
-                Self::ZeroPayloadLength => write!(f, "Zero payload length"),
                 Self::PayloadTooLarge => write!(f, "Payload too large"),
             }
         }
@@ -355,10 +333,6 @@ mod tokio {
                 bincode::config::standard(),
             )
             .map_err(BincodeEncodeError::Encode)?;
-
-            if payload_len == 0 {
-                return Err(BincodeEncodeError::ZeroPayloadLength);
-            }
 
             if payload_len > u32::MAX as usize {
                 return Err(BincodeEncodeError::PayloadTooLarge);

@@ -781,6 +781,7 @@ mod test {
         let items: Vec<heapless::Vec<u8, 32>> = std::vec![
             heapless::Vec::from_slice(b"Hello").unwrap(),
             heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"").unwrap(),
             heapless::Vec::from_slice(b"Hei").unwrap(),
             heapless::Vec::from_slice(b"sup").unwrap(),
             heapless::Vec::from_slice(b"Hey").unwrap(),
