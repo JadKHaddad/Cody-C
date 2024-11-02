@@ -47,7 +47,7 @@ pub struct DeviceConfigAck {
     pub sequence_number: u32,
 }
 
-impl<'a> PayloadContent<'a> {
+impl PayloadContent<'_> {
     pub const fn payload_type(&self) -> PayloadType {
         match self {
             PayloadContent::Init(_) => PayloadType::Init,
