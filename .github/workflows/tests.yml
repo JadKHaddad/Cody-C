@@ -84,6 +84,9 @@ jobs:
       - name: Clippy -- tracing
         run: cargo clippy --no-default-features --features="tracing" -- -D warnings
 
+      - name: Clippy -- binode
+        run: cargo clippy --no-default-features --features="binode" -- -D warnings
+
       # Test
 
       - name: Test
@@ -91,3 +94,6 @@ jobs:
 
       - name: Test -- buffer-early-shift
         run: cargo nextest run --features buffer-early-shift
+
+      - name: Test -- bincode
+        run: cargo nextest run --features bincode
