@@ -148,30 +148,7 @@ where
     }
 }
 
-/// An owned [`BincodeCodec`].
-#[derive(Debug, Clone, Default)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct BincodeCodecOwned<D> {
-    inner: BincodeCodec<D>,
-}
-
-impl<D> BincodeCodecOwned<D> {
-    /// Creates a new [`BincodeCodecOwned`].
-    #[inline]
-    pub const fn new() -> Self {
-        Self {
-            inner: BincodeCodec::new(),
-        }
-    }
-}
-
-impl<D> From<BincodeCodec<D>> for BincodeCodecOwned<D> {
-    fn from(inner: BincodeCodec<D>) -> Self {
-        Self { inner }
-    }
-}
-
-impl<D> DecoderOwned for BincodeCodecOwned<D>
+impl<D> DecoderOwned for BincodeCodec<D>
 where
     D: Decode,
 {
@@ -180,7 +157,6 @@ where
 
     fn decode_owned(&mut self, src: &mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         match self
-            .inner
             .length_codec
             .decode(src)
             .expect("<LengthCodec as Decoder>::Error must be infallible")
@@ -198,20 +174,9 @@ where
     }
 }
 
-impl<D> Encoder<D> for BincodeCodecOwned<D>
-where
-    D: Encode,
-{
-    type Error = BincodeEncodeError;
-
-    fn encode(&mut self, item: D, dst: &mut [u8]) -> Result<usize, Self::Error> {
-        Encoder::encode(&mut self.inner, item, dst)
-    }
-}
-
 #[cfg(all(feature = "std", feature = "tokio"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "std", feature = "tokio"))))]
-mod tokio_util {
+mod impl_tokio_codec {
     //! Tokio codec implementation for [`BincodeCodec`].
 
     use bincode::{
@@ -349,10 +314,12 @@ mod tokio_util {
 mod test {
     extern crate std;
 
+    use core::str::FromStr;
     use std::vec::Vec;
 
     use bincode::serde::Compat as BincodeSerdeCompat;
     use futures::{pin_mut, SinkExt, StreamExt};
+    use tokio_util::codec::{FramedRead as TokioFramedRead, FramedWrite as TokioFramedWrite};
 
     use crate::{sink_stream, test::init_tracing, tokio::Compat, FramedRead, FramedWrite};
 
@@ -396,15 +363,8 @@ mod test {
         }
     }
 
-    #[tokio::test]
-    async fn sink_stream() {
-        use core::str::FromStr;
-
-        use bincode::serde::Compat as BincodeSerdeCompat;
-
-        init_tracing();
-
-        let items: Vec<BincodeMessage> = std::vec![
+    fn test_messages() -> Vec<BincodeMessage> {
+        std::vec![
             BincodeMessage::Numbers(1, 2, 3),
             BincodeMessage::String(BincodeSerdeCompat(
                 heapless::String::from_str("Hello").unwrap()
@@ -412,11 +372,98 @@ mod test {
             BincodeMessage::Vec(BincodeSerdeCompat(
                 heapless::Vec::from_slice(b"Hello, world!").unwrap()
             )),
-        ];
+        ]
+    }
 
-        let decoder = BincodeCodecOwned::<BincodeMessage>::new();
-        let encoder = BincodeCodecOwned::<BincodeMessage>::new();
+    #[tokio::test]
+    async fn sink_stream() {
+        init_tracing();
+
+        let items = test_messages();
+
+        let decoder = BincodeCodec::<BincodeMessage>::new();
+        let encoder = BincodeCodec::<BincodeMessage>::new();
 
         sink_stream!(encoder, decoder, items);
+    }
+
+    #[tokio::test]
+    async fn framed_write() {
+        init_tracing();
+
+        let (crate_framed_read_read, crate_framed_read_write) = tokio::io::duplex(8);
+        let (crate_stream_read, crate_stream_write) = tokio::io::duplex(8);
+        let (tokio_stream_read, tokio_stream_write) = tokio::io::duplex(8);
+
+        for write in [
+            crate_framed_read_write,
+            crate_stream_write,
+            tokio_stream_write,
+        ] {
+            tokio::spawn(async move {
+                let mut witer = FramedWrite::new_with_buffer(
+                    BincodeCodec::<BincodeMessage>::new(),
+                    Compat::new(write),
+                    [0_u8; 1024],
+                );
+
+                for item in test_messages() {
+                    witer.send_frame(item).await.expect("Must send");
+                }
+            });
+        }
+
+        {
+            let mut collected = Vec::<BincodeMessage>::new();
+            let decoder = BincodeCodec::<BincodeMessage>::new();
+            let mut framer = FramedRead::new_with_buffer(
+                decoder,
+                Compat::new(crate_framed_read_read),
+                [0_u8; 1024],
+            );
+
+            loop {
+                match framer.read_frame().await {
+                    Ok(Some(item)) => {
+                        collected.push(item);
+                    }
+                    Ok(None) => {}
+                    Err(_) => {
+                        break;
+                    }
+                }
+            }
+
+            assert_eq!(test_messages(), collected);
+        }
+        {
+            let decoder = BincodeCodec::<BincodeMessage>::new();
+            let mut framer =
+                FramedRead::new_with_buffer(decoder, Compat::new(crate_stream_read), [0_u8; 1024]);
+
+            let stream = framer.stream();
+
+            let collected = stream
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            assert_eq!(test_messages(), collected);
+        }
+        {
+            let decoder = BincodeCodec::<BincodeMessage>::new();
+            let framer = TokioFramedRead::new(tokio_stream_read, decoder);
+
+            let collected = framer
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            assert_eq!(test_messages(), collected);
+        }
     }
 }
