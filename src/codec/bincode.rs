@@ -86,7 +86,7 @@ where
 /// An error that can occur when encoding a bincode data structure into a sequence of bytes with a payload length prefix.
 #[derive(Debug)]
 pub enum BincodeEncodeError {
-    /// The input buffer is too small to fit the encoded line.
+    /// The input buffer is too small to fit the encoded item.
     BufferTooSmall,
     /// A Bincode error occurred.
     Encode(EncodeError),

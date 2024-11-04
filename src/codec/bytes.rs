@@ -35,7 +35,7 @@ impl<'buf> Decoder<'buf> for BytesCodec {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BytesEncodeError {
-    /// The input buffer is too small.
+    /// The input buffer is too small to fit the sequence of bytes.
     BufferTooSmall,
 }
 

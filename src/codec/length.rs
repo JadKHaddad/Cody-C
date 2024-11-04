@@ -49,7 +49,7 @@ impl<'buf> Decoder<'buf> for LengthCodec {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LengthEncodeError {
-    /// The input buffer is too small to fit the encoded line.
+    /// The input buffer is too small to fit the encoded sequence of bytes.
     BufferTooSmall,
     /// Payload length is zero.
     ZeroPayloadLength,
