@@ -303,7 +303,8 @@ pub mod tokio_codec {
                 return Err(BincodeEncodeError::PayloadTooLarge);
             }
 
-            dst[start_len..start_len + SIZE_OF_LENGTH].copy_from_slice(&payload_len.to_be_bytes());
+            dst[start_len..start_len + SIZE_OF_LENGTH]
+                .copy_from_slice(&(payload_len as u32).to_be_bytes());
 
             Ok(())
         }
@@ -387,8 +388,64 @@ mod test {
         sink_stream!(encoder, decoder, items);
     }
 
+    macro_rules! collect_and_assert {
+        ($read_1:ident, $read_2:ident, $read_3:ident) => {{
+            let mut collected = Vec::<BincodeMessage>::new();
+            let mut framer = FramedRead::new_with_buffer(
+                BincodeCodec::<BincodeMessage>::new(),
+                Compat::new($read_1),
+                [0_u8; 1024],
+            );
+
+            loop {
+                match framer.read_frame().await {
+                    Ok(Some(item)) => {
+                        collected.push(item);
+                    }
+                    Ok(None) => {}
+                    Err(_) => {
+                        break;
+                    }
+                }
+            }
+
+            assert_eq!(test_messages(), collected);
+        }
+        {
+            let mut framer = FramedRead::new_with_buffer(
+                BincodeCodec::<BincodeMessage>::new(),
+                Compat::new($read_2),
+                [0_u8; 1024],
+            );
+
+            let stream = framer.stream();
+
+            let collected = stream
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            assert_eq!(test_messages(), collected);
+        }
+        {
+            let framer = TokioFramedRead::new($read_3, BincodeCodec::<BincodeMessage>::new());
+
+            let collected = framer
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            assert_eq!(test_messages(), collected);
+        }};
+    }
+
+    /// Test sending from a `FramedWrite` to a `FramedRead`, `FramedRead::stream` and `tokio_util::codec::FramedRead`.
     #[tokio::test]
-    async fn framed_write() {
+    async fn crate_framed_write() {
         init_tracing();
 
         let (crate_framed_read_read, crate_framed_read_write) = tokio::io::duplex(8);
@@ -413,57 +470,66 @@ mod test {
             });
         }
 
-        {
-            let mut collected = Vec::<BincodeMessage>::new();
-            let decoder = BincodeCodec::<BincodeMessage>::new();
-            let mut framer = FramedRead::new_with_buffer(
-                decoder,
-                Compat::new(crate_framed_read_read),
-                [0_u8; 1024],
-            );
+        collect_and_assert!(crate_framed_read_read, crate_stream_read, tokio_stream_read);
+    }
 
-            loop {
-                match framer.read_frame().await {
-                    Ok(Some(item)) => {
-                        collected.push(item);
-                    }
-                    Ok(None) => {}
-                    Err(_) => {
-                        break;
-                    }
+    /// Test sending from a `FramedWrite::sink` to a `FramedRead`, `FramedRead::stream` and `tokio_util::codec::FramedRead`.
+    #[tokio::test]
+    async fn crate_sink() {
+        init_tracing();
+
+        let (crate_framed_read_read, crate_framed_read_write) = tokio::io::duplex(8);
+        let (crate_stream_read, crate_stream_write) = tokio::io::duplex(8);
+        let (tokio_stream_read, tokio_stream_write) = tokio::io::duplex(8);
+
+        for write in [
+            crate_framed_read_write,
+            crate_stream_write,
+            tokio_stream_write,
+        ] {
+            tokio::spawn(async move {
+                let mut witer = FramedWrite::new_with_buffer(
+                    BincodeCodec::<BincodeMessage>::new(),
+                    Compat::new(write),
+                    [0_u8; 1024],
+                );
+
+                let sink = witer.sink();
+
+                pin_mut!(sink);
+
+                for item in test_messages() {
+                    sink.send(item).await.expect("Must send");
                 }
-            }
-
-            assert_eq!(test_messages(), collected);
+            });
         }
-        {
-            let decoder = BincodeCodec::<BincodeMessage>::new();
-            let mut framer =
-                FramedRead::new_with_buffer(decoder, Compat::new(crate_stream_read), [0_u8; 1024]);
 
-            let stream = framer.stream();
+        collect_and_assert!(crate_framed_read_read, crate_stream_read, tokio_stream_read);
+    }
 
-            let collected = stream
-                .collect::<Vec<_>>()
-                .await
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
+    /// Test sending from a `tokio_util::codec::FramedWrite` to a `FramedRead`, `FramedRead::stream` and `tokio_util::codec::FramedRead`.
+    #[tokio::test]
+    async fn tokio_sink() {
+        init_tracing();
 
-            assert_eq!(test_messages(), collected);
+        let (crate_framed_read_read, crate_framed_read_write) = tokio::io::duplex(8);
+        let (crate_stream_read, crate_stream_write) = tokio::io::duplex(8);
+        let (tokio_stream_read, tokio_stream_write) = tokio::io::duplex(8);
+
+        for write in [
+            crate_framed_read_write,
+            crate_stream_write,
+            tokio_stream_write,
+        ] {
+            tokio::spawn(async move {
+                let mut sink = TokioFramedWrite::new(write, BincodeCodec::<BincodeMessage>::new());
+
+                for item in test_messages() {
+                    sink.send(item).await.expect("Must send");
+                }
+            });
         }
-        {
-            let decoder = BincodeCodec::<BincodeMessage>::new();
-            let framer = TokioFramedRead::new(tokio_stream_read, decoder);
 
-            let collected = framer
-                .collect::<Vec<_>>()
-                .await
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
-
-            assert_eq!(test_messages(), collected);
-        }
+        collect_and_assert!(crate_framed_read_read, crate_stream_read, tokio_stream_read);
     }
 }
