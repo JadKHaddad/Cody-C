@@ -176,7 +176,7 @@ where
 
 #[cfg(all(feature = "std", feature = "tokio"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "std", feature = "tokio"))))]
-mod impl_tokio_codec {
+pub mod tokio_codec {
     //! Tokio codec implementation for [`BincodeCodec`].
 
     use bincode::{
