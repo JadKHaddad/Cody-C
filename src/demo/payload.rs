@@ -1,3 +1,4 @@
+use derive_more::derive::From;
 use serde::Deserialize;
 
 use crate::demo::payload_content::{Init, InitAck};
@@ -21,49 +22,81 @@ impl<'a> Payload<'a> {
         self.content.payload_type()
     }
 
-    #[allow(clippy::result_unit_err)]
-    pub fn write_to(&self, dst: &mut [u8]) -> Result<usize, ()> {
-        serde_json_core::to_slice(&self.content, dst).map_err(|_| ())
+    pub fn write_to(&self, dst: &mut [u8]) -> Result<usize, PayloadWriteError> {
+        serde_json_core::to_slice(&self.content, dst).map_err(PayloadWriteError::Serialize)
     }
 
-    fn maybe_payload_content_from_json_slice_mapped<T>(
+    fn payload_content_from_json_slice_mapped<T>(
         src: &'a [u8],
-    ) -> Option<(PayloadContent<'a>, usize)>
+    ) -> Result<(PayloadContent<'a>, usize), PayloadFromSliceError>
     where
         T: Deserialize<'a>,
         PayloadContent<'a>: From<T>,
     {
         serde_json_core::from_slice::<T>(src)
-            .ok()
             .map(|(de, size)| (PayloadContent::from(de), size))
+            .map_err(PayloadFromSliceError::Deserialize)
     }
 
-    pub fn maybe_payload_from_json_slice(
+    pub fn payload_from_json_slice(
         payload_type: PayloadType,
         src: &'a [u8],
-    ) -> Option<(Self, usize)> {
+    ) -> Result<(Self, usize), PayloadFromSliceError> {
         let (content, size) = match payload_type {
-            PayloadType::Init => {
-                Self::maybe_payload_content_from_json_slice_mapped::<Init<'a>>(src)
-            }
-
+            PayloadType::Init => Self::payload_content_from_json_slice_mapped::<Init<'a>>(src),
             PayloadType::InitAck => {
-                Self::maybe_payload_content_from_json_slice_mapped::<InitAck<'a>>(src)
+                Self::payload_content_from_json_slice_mapped::<InitAck<'a>>(src)
             }
             PayloadType::Heartbeat => {
-                Self::maybe_payload_content_from_json_slice_mapped::<Heartbeat>(src)
+                Self::payload_content_from_json_slice_mapped::<Heartbeat>(src)
             }
             PayloadType::HeartbeatAck => {
-                Self::maybe_payload_content_from_json_slice_mapped::<HeartbeatAck>(src)
+                Self::payload_content_from_json_slice_mapped::<HeartbeatAck>(src)
             }
             PayloadType::DeviceConfig => {
-                Self::maybe_payload_content_from_json_slice_mapped::<DeviceConfig<'a>>(src)
+                Self::payload_content_from_json_slice_mapped::<DeviceConfig<'a>>(src)
             }
             PayloadType::DeviceConfigAck => {
-                Self::maybe_payload_content_from_json_slice_mapped::<DeviceConfigAck>(src)
+                Self::payload_content_from_json_slice_mapped::<DeviceConfigAck>(src)
             }
         }?;
 
-        Some((Self { content }, size))
+        Ok((Self { content }, size))
+    }
+}
+
+#[derive(Debug, From)]
+pub enum PayloadWriteError {
+    Serialize(serde_json_core::ser::Error),
+}
+
+#[derive(Debug, From)]
+pub enum PayloadFromSliceError {
+    Deserialize(serde_json_core::de::Error),
+}
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use super::*;
+
+    #[test]
+    fn encode_decode() {
+        let buf = &mut [0; 100];
+
+        let payload = Payload::new(PayloadContent::DeviceConfig(DeviceConfig {
+            sequence_number: 12,
+            config: "config",
+        }));
+
+        let written = payload.write_to(buf).expect("Must be ok");
+
+        let (reconstructed, read) =
+            Payload::payload_from_json_slice(PayloadType::DeviceConfig, &buf[..written])
+                .expect("Must be ok");
+
+        assert_eq!(written, read);
+        assert_eq!(reconstructed, payload);
     }
 }

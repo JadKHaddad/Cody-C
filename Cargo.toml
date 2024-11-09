@@ -22,7 +22,13 @@ defmt = ["dep:defmt"]
 pretty-hex-fmt = []
 char-fmt = []
 buffer-early-shift = []
-demo = ["dep:zerocopy", "dep:serde", "dep:serde-json-core", "dep:derive_more"]
+demo = [
+    "dep:zerocopy",
+    "dep:serde",
+    "dep:serde-json-core",
+    "dep:derive_more",
+    "dep:crc32fast",
+]
 
 [dependencies]
 tokio = { version = "1.41.0", default-features = false, features = [
@@ -47,6 +53,7 @@ serde-json-core = { version = "0.6.0", optional = true }
 derive_more = { version = "1", default-features = false, features = [
     "from",
 ], optional = true }
+crc32fast = { version = "1.4.2", default-features = false, optional = true }
 
 
 [dev-dependencies]
@@ -60,6 +67,7 @@ bincode = { version = "2.0.0-rc.3", default-features = false, features = [
     "std",
     "serde",
 ] }
+
 
 [package.metadata.docs.rs]
 all-features = true

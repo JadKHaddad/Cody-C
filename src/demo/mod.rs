@@ -1,6 +1,7 @@
 //! Demo module
 
 pub mod header;
+pub mod packet;
 pub mod payload;
 pub mod payload_content;
 pub mod payload_type;
