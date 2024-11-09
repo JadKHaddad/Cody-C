@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Jad K. Haddad <jadkhaddad@gmail.com>"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-description = "A simple and fast codec for encoding and decoding data in no_std environments"
+description = "A simple and zerocopy codec for encoding and decoding data in no_std environments."
 repository = "https://github.com/JadKHaddad/Cody-C"
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
