@@ -14,8 +14,14 @@ pub struct Payload<'a> {
 }
 
 impl<'a> Payload<'a> {
-    pub const fn new(content: PayloadContent<'a>) -> Self {
+    pub const fn new_raw(content: PayloadContent<'a>) -> Self {
         Self { content }
+    }
+
+    pub fn new(content: impl Into<PayloadContent<'a>>) -> Self {
+        Self {
+            content: content.into(),
+        }
     }
 
     pub const fn payload_type(&self) -> PayloadType {
@@ -85,7 +91,7 @@ mod test {
     fn encode_decode() {
         let buf = &mut [0; 100];
 
-        let payload = Payload::new(PayloadContent::DeviceConfig(DeviceConfig {
+        let payload = Payload::new_raw(PayloadContent::DeviceConfig(DeviceConfig {
             sequence_number: 12,
             config: "config",
         }));

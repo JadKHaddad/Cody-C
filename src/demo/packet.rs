@@ -3,6 +3,7 @@ use derive_more::derive::From;
 use super::{
     header::Header,
     payload::{Payload, PayloadFromSliceError},
+    payload_content::PayloadContent,
     raw_packet::{RawPacket, RawPacketFromSliceError, RawPacketWriteError},
 };
 
@@ -22,14 +23,20 @@ pub enum PacketFromSliceError {
     Payload(PayloadFromSliceError),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Packet<'a> {
-    payload: Payload<'a>,
+    pub payload: Payload<'a>,
 }
 
 impl<'a> Packet<'a> {
-    pub const fn new(payload: Payload<'a>) -> Self {
+    pub const fn new_raw(payload: Payload<'a>) -> Self {
         Self { payload }
+    }
+
+    pub fn new(content: impl Into<PayloadContent<'a>>) -> Self {
+        Self {
+            payload: Payload::new(content),
+        }
     }
 
     pub const fn payload(&self) -> &Payload<'a> {
@@ -77,10 +84,12 @@ mod test {
     fn encode_decode() {
         let buf = &mut [0; 100];
 
-        let packet = Packet::new(Payload::new(PayloadContent::DeviceConfig(DeviceConfig {
-            sequence_number: 12,
-            config: "config",
-        })));
+        let packet = Packet::new_raw(Payload::new_raw(PayloadContent::DeviceConfig(
+            DeviceConfig {
+                sequence_number: 12,
+                config: "config",
+            },
+        )));
 
         let written = packet.write_to(buf).expect("Must be ok");
 
