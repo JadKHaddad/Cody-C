@@ -87,6 +87,9 @@ jobs:
       - name: Clippy -- bincode
         run: cargo clippy --no-default-features --features="bincode" -- -D warnings
 
+      - name: Clippy -- demo
+        run: cargo clippy --no-default-features --features="demo" -- -D warnings
+
       # Test
 
       - name: Test
@@ -97,3 +100,6 @@ jobs:
 
       - name: Test -- bincode
         run: cargo nextest run --features bincode
+      
+      - name: Test -- demo
+        run: cargo nextest run --features demo
