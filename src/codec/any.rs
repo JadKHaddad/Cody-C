@@ -186,3 +186,93 @@ impl<const N: usize> Encoder<Vec<u8, N>> for AnyDelimiterCodecOwned<'_, N> {
         Encoder::encode(&mut self.inner, &item, dst)
     }
 }
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use std::vec::Vec;
+
+    use futures::{pin_mut, SinkExt, StreamExt};
+    use tokio::io::AsyncWriteExt;
+
+    use crate::{
+        error, framed_read, sink_stream, test::init_tracing, tokio::Compat, FramedRead,
+        FramedReadError, FramedWrite,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn framed_read() {
+        init_tracing();
+
+        let items: &[&[u8]] = &[
+            b"jh asjd##ppppppppppppppp##",
+            b"k hb##jsjuwjal kadj##jsadhjiu##w",
+            b"##jal kadjjsadhjiuwqens ##",
+            b"nd ",
+            b"yxxcjajsdi##askdn as",
+            b"jdasd##iouqw es",
+            b"sd##k",
+        ];
+
+        let decoder = AnyDelimiterCodec::new(b"##");
+
+        let expected: &[&[u8]] = &[];
+        framed_read!(items, expected, decoder, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 4, BufferTooSmall);
+
+        framed_read!(items, expected, decoder, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 4, BufferTooSmall);
+
+        framed_read!(items, expected, decoder, 4, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 4, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"jh asjd"];
+        framed_read!(items, expected, decoder, 16, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[
+            b"jh asjd",
+            b"ppppppppppppppp",
+            b"k hb",
+            b"jsjuwjal kadj",
+            b"jsadhjiu",
+            b"w",
+            b"jal kadjjsadhjiuwqens ",
+            b"nd yxxcjajsdi",
+            b"askdn asjdasd",
+            b"iouqw essd",
+        ];
+        framed_read!(items, expected, decoder, 32, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 32, 1, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 32, 2, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 32, 4, BytesRemainingOnStream);
+
+        framed_read!(items, expected, decoder);
+    }
+
+    #[tokio::test]
+    async fn sink_stream() {
+        init_tracing();
+
+        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+            heapless::Vec::from_slice(b"Hello").unwrap(),
+            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"Hei").unwrap(),
+            heapless::Vec::from_slice(b"sup").unwrap(),
+            heapless::Vec::from_slice(b"Hey").unwrap(),
+        ];
+
+        let decoder = AnyDelimiterCodecOwned::<32>::new(b"###");
+        let encoder = AnyDelimiterCodecOwned::<32>::new(b"###");
+
+        sink_stream!(encoder, decoder, items);
+    }
+}

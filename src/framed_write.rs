@@ -160,8 +160,8 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
         }
     }
 
-    /// Writes a frame to the underlying `writer`.
-    pub async fn write_frame<I>(
+    /// Writes a frame to the underlying `writer` and flushes it.
+    pub async fn send_frame<I>(
         &mut self,
         item: I,
     ) -> Result<(), FramedWriteError<W::Error, E::Error>>
@@ -211,7 +211,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
         W: AsyncWrite,
     {
         futures::sink::unfold(self, |this, item: I| async move {
-            this.write_frame(item).await?;
+            this.send_frame(item).await?;
 
             Ok::<_, FramedWriteError<W::Error, E::Error>>(this)
         })

@@ -84,6 +84,12 @@ jobs:
       - name: Clippy -- tracing
         run: cargo clippy --no-default-features --features="tracing" -- -D warnings
 
+      - name: Clippy -- bincode
+        run: cargo clippy --no-default-features --features="bincode" -- -D warnings
+
+      - name: Clippy -- demo
+        run: cargo clippy --no-default-features --features="demo" -- -D warnings
+
       # Test
 
       - name: Test
@@ -91,3 +97,9 @@ jobs:
 
       - name: Test -- buffer-early-shift
         run: cargo nextest run --features buffer-early-shift
+
+      - name: Test -- bincode
+        run: cargo nextest run --features "bincode,tokio,std"
+      
+      - name: Test -- demo
+        run: cargo nextest run --features demo

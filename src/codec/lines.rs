@@ -157,3 +157,87 @@ impl<const N: usize> Encoder<Vec<u8, N>> for LinesCodecOwned<N> {
         Encoder::encode(&mut self.inner, &item, dst)
     }
 }
+
+#[cfg(test)]
+mod test {
+    extern crate std;
+
+    use std::vec::Vec;
+
+    use futures::{pin_mut, SinkExt, StreamExt};
+    use tokio::io::AsyncWriteExt;
+
+    use crate::{
+        error, framed_read, sink_stream, test::init_tracing, tokio::Compat, FramedRead,
+        FramedReadError, FramedWrite,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn framed_read() {
+        init_tracing();
+
+        let items: &[&[u8]] = &[
+            b"Hel",
+            b"lo\n",
+            b"Hell",
+            b"o, world!\n",
+            b"H",
+            b"ei\r\n",
+            b"sup",
+            b"\n",
+            b"Hey\r",
+            b"\n",
+            b"How ",
+            b"are y",
+        ];
+
+        let decoder = LinesCodec::new();
+
+        let expected: &[&[u8]] = &[];
+        framed_read!(items, expected, decoder, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 4, BufferTooSmall);
+
+        framed_read!(items, expected, decoder, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 4, BufferTooSmall);
+
+        framed_read!(items, expected, decoder, 4, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 4, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"Hello"];
+        framed_read!(items, expected, decoder, 8, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"Hello", b"Hello, world!", b"Hei", b"sup", b"Hey"];
+        framed_read!(items, expected, decoder, 16, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 16, 1, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 16, 2, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 16, 4, BytesRemainingOnStream);
+
+        framed_read!(items, expected, decoder);
+    }
+
+    #[tokio::test]
+    async fn sink_stream() {
+        init_tracing();
+
+        let items: Vec<heapless::Vec<u8, 32>> = std::vec![
+            heapless::Vec::from_slice(b"Hello").unwrap(),
+            heapless::Vec::from_slice(b"Hello, world!").unwrap(),
+            heapless::Vec::from_slice(b"Hei").unwrap(),
+            heapless::Vec::from_slice(b"sup").unwrap(),
+            heapless::Vec::from_slice(b"Hey").unwrap(),
+        ];
+
+        let decoder = LinesCodecOwned::<32>::new();
+        let encoder = LinesCodecOwned::<32>::new();
+
+        sink_stream!(encoder, decoder, items);
+    }
+}
