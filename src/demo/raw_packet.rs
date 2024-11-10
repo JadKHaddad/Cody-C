@@ -1,24 +1,31 @@
+//! Raw packet module.
+
 use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 use super::{header::Header, payload::Payload};
 
+/// A raw packet that contains a header and a payload.
 #[derive(FromBytes, KnownLayout, Immutable, Debug)]
 #[repr(C)]
 pub struct RawPacket {
+    /// The header of the packet.
     header: Header,
     /// Might contain less or more bytes than the actual payload.
     raw_payload: [u8],
 }
 
 impl RawPacket {
+    /// Returns a reference to the header.
     pub const fn header(&self) -> &Header {
         &self.header
     }
 
+    /// Returns a reference to the raw payload.
     pub const fn raw_payload(&self) -> &[u8] {
         &self.raw_payload
     }
 
+    /// Returns a reference to the payload bytes.
     pub fn payload_bytes(&self) -> &[u8] {
         &self.raw_payload[..self.header.payload_length()]
     }
@@ -28,6 +35,7 @@ impl RawPacket {
         self.header.packet_length() as usize - Header::size()
     }
 
+    /// Writes the given payload to the given destination buffer.
     pub fn write_to(payload: &Payload<'_>, dst: &mut [u8]) -> Result<usize, RawPacketWriteError> {
         let packet_length = match Header::mut_from_prefix(dst) {
             Err(_) => return Err(RawPacketWriteError::HeaderWrite),
@@ -49,6 +57,7 @@ impl RawPacket {
         Ok(packet_length)
     }
 
+    /// Returns a reference to a raw packet if the given slice starts with a valid raw packet.
     pub fn maybe_raw_packet_from_prefix(
         src: &mut [u8],
     ) -> Result<Option<&Self>, RawPacketFromSliceError> {
@@ -81,6 +90,7 @@ impl RawPacket {
     }
 }
 
+/// Error returned by [`RawPacket::write_to`].
 #[derive(Debug)]
 pub enum RawPacketWriteError {
     /// Failed to write header.
@@ -89,6 +99,7 @@ pub enum RawPacketWriteError {
     PayloadWrite,
 }
 
+/// Error returned by [`RawPacket::maybe_raw_packet_from_prefix`].
 #[derive(Debug)]
 pub enum RawPacketFromSliceError {
     /// Invalid checksum.

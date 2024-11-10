@@ -3,6 +3,7 @@
 pub mod formatter;
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! trace {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -17,6 +18,7 @@ macro_rules! trace {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! debug {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -31,6 +33,7 @@ macro_rules! debug {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! error {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -45,6 +48,7 @@ macro_rules! error {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! info {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -59,6 +63,7 @@ macro_rules! info {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! warn {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]

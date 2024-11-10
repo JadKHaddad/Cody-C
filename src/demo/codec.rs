@@ -1,11 +1,15 @@
+//! Packet codec implementation module.
+
 use crate::{Decoder, Encoder};
 
 use super::packet::{Packet, PacketFromSliceError, PacketWriteError};
 
+/// A codec for encoding and decoding packets.
 #[derive(Debug, Default)]
 pub struct PacketCodec {}
 
 impl PacketCodec {
+    /// Creates a new [`PacketCodec`].
     pub fn new() -> Self {
         Default::default()
     }

@@ -1,3 +1,5 @@
+//! Payload module.
+
 use derive_more::derive::From;
 use serde::Deserialize;
 
@@ -8,30 +10,37 @@ use super::{
     payload_type::PayloadType,
 };
 
+/// A payload that contains some content.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Payload<'a> {
+    /// The content of the payload.
     pub content: PayloadContent<'a>,
 }
 
 impl<'a> Payload<'a> {
+    /// Creates a new payload with the given content.
     pub const fn new_raw(content: PayloadContent<'a>) -> Self {
         Self { content }
     }
 
+    /// Creates a new payload with the given content.
     pub fn new(content: impl Into<PayloadContent<'a>>) -> Self {
         Self {
             content: content.into(),
         }
     }
 
+    /// Returns the payload type.
     pub const fn payload_type(&self) -> PayloadType {
         self.content.payload_type()
     }
 
+    /// Writes the payload to the given destination buffer.
     pub fn write_to(&self, dst: &mut [u8]) -> Result<usize, PayloadWriteError> {
         serde_json_core::to_slice(&self.content, dst).map_err(PayloadWriteError::Serialize)
     }
 
+    /// Returns a payload (mapped from payload content) from the given JSON slice.
     fn payload_content_from_json_slice_mapped<T>(
         src: &'a [u8],
     ) -> Result<(PayloadContent<'a>, usize), PayloadFromSliceError>
@@ -44,6 +53,7 @@ impl<'a> Payload<'a> {
             .map_err(PayloadFromSliceError::Deserialize)
     }
 
+    /// Returns a payload from the given JSON slice.
     pub fn payload_from_json_slice(
         payload_type: PayloadType,
         src: &'a [u8],
@@ -71,13 +81,17 @@ impl<'a> Payload<'a> {
     }
 }
 
+/// Error returned by [`Payload::write_to`].
 #[derive(Debug, From)]
 pub enum PayloadWriteError {
+    /// Serialization error.
     Serialize(serde_json_core::ser::Error),
 }
 
+/// Error returned by [`Payload::payload_from_json_slice`].
 #[derive(Debug, From)]
 pub enum PayloadFromSliceError {
+    /// Deserialization error.
     Deserialize(serde_json_core::de::Error),
 }
 

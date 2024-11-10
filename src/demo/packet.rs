@@ -1,3 +1,5 @@
+//! Packet module.
+
 use derive_more::derive::From;
 
 use super::{
@@ -7,46 +9,37 @@ use super::{
     raw_packet::{RawPacket, RawPacketFromSliceError, RawPacketWriteError},
 };
 
-#[derive(Debug, From)]
-pub enum PacketWriteError {
-    /// Failed to write raw packet.
-    RawPacket(RawPacketWriteError),
-}
-
-#[derive(Debug, From)]
-pub enum PacketFromSliceError {
-    /// Invalid raw packet.
-    RawPacket(RawPacketFromSliceError),
-    /// Unknown payload type.
-    UnknownPayloadType,
-    /// Invalid payload.
-    Payload(PayloadFromSliceError),
-}
-
+/// A packet that contains some payload.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Packet<'a> {
+    /// The payload of the packet.
     pub payload: Payload<'a>,
 }
 
 impl<'a> Packet<'a> {
+    /// Creates a new packet with the given payload.
     pub const fn new_raw(payload: Payload<'a>) -> Self {
         Self { payload }
     }
 
+    /// Creates a new packet with the given payload.
     pub fn new(content: impl Into<PayloadContent<'a>>) -> Self {
         Self {
             payload: Payload::new(content),
         }
     }
 
+    /// Returns a reference to the payload.
     pub const fn payload(&self) -> &Payload<'a> {
         &self.payload
     }
 
+    /// Writes the packet to the given destination buffer.
     pub fn write_to(&self, dst: &mut [u8]) -> Result<usize, PacketWriteError> {
         Ok(RawPacket::write_to(&self.payload, dst)?)
     }
 
+    /// Returns a reference to a packet if the given slice starts with a valid packet.
     pub fn maybe_packet_from_prefix(
         src: &'a mut [u8],
     ) -> Result<Option<(Packet<'a>, usize)>, PacketFromSliceError> {
@@ -70,6 +63,24 @@ impl<'a> Packet<'a> {
             }
         }
     }
+}
+
+/// Error returned by [`Packet::write_to`].
+#[derive(Debug, From)]
+pub enum PacketWriteError {
+    /// Failed to write raw packet.
+    RawPacket(RawPacketWriteError),
+}
+
+/// Error returned by [`Packet::maybe_packet_from_prefix`].
+#[derive(Debug, From)]
+pub enum PacketFromSliceError {
+    /// Invalid raw packet.
+    RawPacket(RawPacketFromSliceError),
+    /// Unknown payload type.
+    UnknownPayloadType,
+    /// Invalid payload.
+    Payload(PayloadFromSliceError),
 }
 
 #[cfg(test)]
