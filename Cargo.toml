@@ -10,7 +10,7 @@ repository = "https://github.com/JadKHaddad/Cody-C"
 keywords = ["codec", "no_std", "embedded", "encode", "decode"]
 
 [features]
-default = ["char-fmt", "demo", "tracing", "bincode", "tokio", "std"]
+default = ["char-fmt"]
 std = ["bincode/std", "futures/std"]
 tokio = ["dep:tokio", "dep:tokio-util"]
 futures-io = ["futures/std"]
