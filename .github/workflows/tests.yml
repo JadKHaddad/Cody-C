@@ -99,7 +99,7 @@ jobs:
         run: cargo nextest run --features buffer-early-shift
 
       - name: Test -- bincode
-        run: cargo nextest run --features bincode
+        run: cargo nextest run --features "bincode,tokio,std"
       
       - name: Test -- demo
         run: cargo nextest run --features demo

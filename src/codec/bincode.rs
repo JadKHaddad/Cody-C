@@ -311,7 +311,7 @@ pub mod tokio_codec {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std", feature = "tokio"))]
 mod test {
     extern crate std;
 
