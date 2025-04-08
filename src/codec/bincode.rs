@@ -3,8 +3,8 @@
 use core::marker::PhantomData;
 
 use bincode::{
-    error::{DecodeError, EncodeError},
     BorrowDecode, Decode, Encode,
+    error::{DecodeError, EncodeError},
 };
 
 use crate::{Decoder, DecoderOwned, Encoder, SIZE_OF_LENGTH};
@@ -180,8 +180,8 @@ pub mod tokio_codec {
     //! Tokio codec implementation for [`BincodeCodec`].
 
     use bincode::{
-        error::{DecodeError, EncodeError},
         Decode, Encode,
+        error::{DecodeError, EncodeError},
     };
     use tokio_util::{
         bytes::{Buf, BufMut, BytesMut},
@@ -319,10 +319,10 @@ mod test {
     use std::vec::Vec;
 
     use bincode::serde::Compat as BincodeSerdeCompat;
-    use futures::{pin_mut, SinkExt, StreamExt};
+    use futures::{SinkExt, StreamExt, pin_mut};
     use tokio_util::codec::{FramedRead as TokioFramedRead, FramedWrite as TokioFramedWrite};
 
-    use crate::{sink_stream, test::init_tracing, tokio::Compat, FramedRead, FramedWrite};
+    use crate::{FramedRead, FramedWrite, sink_stream, test::init_tracing, tokio::Compat};
 
     use super::*;
 

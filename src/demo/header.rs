@@ -2,7 +2,7 @@
 
 use crc32fast::Hasher;
 use zerocopy::{
-    big_endian::U32, byteorder::big_endian::U16, FromBytes, Immutable, IntoBytes, KnownLayout,
+    FromBytes, Immutable, IntoBytes, KnownLayout, big_endian::U32, byteorder::big_endian::U16,
 };
 
 use super::{payload::Payload, payload_type::PayloadType};

@@ -37,12 +37,12 @@ mod test {
     extern crate std;
 
     use crate::{
+        FramedRead, FramedReadError,
         demo::payload_content::{
             DeviceConfig, DeviceConfigAck, Heartbeat, HeartbeatAck, Init, InitAck,
         },
         test::init_tracing,
         tokio::Compat,
-        FramedRead, FramedReadError,
     };
     use tokio::io::AsyncWriteExt;
 

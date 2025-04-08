@@ -164,12 +164,12 @@ mod test {
 
     use std::vec::Vec;
 
-    use futures::{pin_mut, SinkExt, StreamExt};
+    use futures::{SinkExt, StreamExt, pin_mut};
     use tokio::io::AsyncWriteExt;
 
     use crate::{
-        error, framed_read, sink_stream, test::init_tracing, tokio::Compat, FramedRead,
-        FramedReadError, FramedWrite,
+        FramedRead, FramedReadError, FramedWrite, error, framed_read, sink_stream,
+        test::init_tracing, tokio::Compat,
     };
 
     use super::*;
