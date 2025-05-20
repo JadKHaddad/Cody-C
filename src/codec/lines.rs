@@ -1,8 +1,8 @@
 //! Lines codecs for encoding and decoding line bytes.
 
-use core::convert::Infallible;
+use core::{convert::Infallible, str::FromStr};
 
-use heapless::Vec;
+use heapless::{String, Vec};
 
 use crate::{
     decode::{Decoder, DecoderOwned},
@@ -187,7 +187,7 @@ impl From<LinesCodec> for StrLinesCodec {
     }
 }
 
-/// Error returned by [`StrLinesCodec::encode`].
+/// Error returned by [`StrLinesCodec::decode`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum StrLinesDecodeError {
@@ -227,6 +227,79 @@ impl<'a> Encoder<&'a str> for StrLinesCodec {
 
     fn encode(&mut self, item: &'a str, dst: &mut [u8]) -> Result<usize, Self::Error> {
         Encoder::encode(&mut self.inner, item.as_bytes(), dst)
+    }
+}
+
+/// An owned [`StrLinesCodec`].
+///
+/// # Note
+///
+/// This codec tracks progress using an internal state of the underlying buffer, and it must not be used across multiple framing sessions.
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct StringLinesCodec<const N: usize> {
+    inner: StrLinesCodec,
+}
+
+impl<const N: usize> StringLinesCodec<N> {
+    /// Creates a new [`StringLinesCodec`].
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            inner: StrLinesCodec::new(),
+        }
+    }
+}
+
+impl<const N: usize> From<StrLinesCodec> for StringLinesCodec<N> {
+    fn from(inner: StrLinesCodec) -> Self {
+        Self { inner }
+    }
+}
+
+/// Error returned by [`StringLinesCodec::decode_owned`].
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum StringLinesDecodeError {
+    /// Str decoding error.
+    Str(StrLinesDecodeError),
+    /// The buffer is too small to fit the decoded bytes.
+    BufferTooSmall,
+}
+
+impl core::fmt::Display for StringLinesDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StringLinesDecodeError::Str(err) => write!(f, "str error: {}", err),
+            StringLinesDecodeError::BufferTooSmall => write!(f, "buffer too small"),
+        }
+    }
+}
+
+impl core::error::Error for StringLinesDecodeError {}
+
+impl<const N: usize> DecoderOwned for StringLinesCodec<N> {
+    type Item = String<N>;
+    type Error = StringLinesDecodeError;
+
+    fn decode_owned(&mut self, src: &mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        match Decoder::decode(&mut self.inner, src) {
+            Ok(Some((bytes, size))) => {
+                let item =
+                    String::from_str(bytes).map_err(|_| StringLinesDecodeError::BufferTooSmall)?;
+                Ok(Some((item, size)))
+            }
+            Ok(None) => Ok(None),
+            Err(err) => Err(StringLinesDecodeError::Str(err)),
+        }
+    }
+}
+
+impl<const N: usize> Encoder<String<N>> for StringLinesCodec<N> {
+    type Error = LinesEncodeError;
+
+    fn encode(&mut self, item: String<N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        Encoder::encode(&mut self.inner, &item, dst)
     }
 }
 
@@ -360,5 +433,23 @@ mod test {
         framed_read!(items, expected, decoder, 16, 4, BytesRemainingOnStream);
 
         framed_read!(items, expected, decoder);
+    }
+
+    #[tokio::test]
+    async fn sink_stream_str() {
+        init_tracing();
+
+        let items: Vec<heapless::String<32>> = std::vec![
+            heapless::String::from_str("Hello").unwrap(),
+            heapless::String::from_str("Hello, world!").unwrap(),
+            heapless::String::from_str("Hei").unwrap(),
+            heapless::String::from_str("sup").unwrap(),
+            heapless::String::from_str("Hey").unwrap(),
+        ];
+
+        let decoder = StringLinesCodec::<32>::new();
+        let encoder = StringLinesCodec::<32>::new();
+
+        sink_stream!(encoder, decoder, items);
     }
 }
