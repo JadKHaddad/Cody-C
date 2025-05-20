@@ -1,4 +1,4 @@
-//! An any delimiter codecs for encoding and decoding bytes.
+//! Any delimiter codecs for encoding and decoding bytes.
 
 use core::convert::Infallible;
 
