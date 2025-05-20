@@ -9,6 +9,7 @@
         "docsrs",
         "Haddad",
         "heapless",
+        "libfuzzer",
         "MSRV",
         "nextest",
         "repr",

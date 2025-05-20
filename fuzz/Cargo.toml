@@ -1,0 +1,44 @@
+[package]
+name = "cody-c-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tokio = { version = "1", features = ["full"] }
+heapless = { version = "0.8.0", default-features = false }
+cody-c = { path = "../", default-features = false }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "decode"
+path = "fuzz_targets/decode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "encode"
+path = "fuzz_targets/encode.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "stream"
+path = "fuzz_targets/stream.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "zerocopy"
+path = "fuzz_targets/zerocopy.rs"
+test = false
+doc = false
