@@ -1,10 +1,10 @@
-//! Framed read stream. Transforms an [`AsyncRead`] into a stream of frames.
+//! Framed read stream. Transforms an [`Read`] into a stream of frames.
 
+use embedded_io_async::Read;
 use futures::Stream;
 
 use crate::{
     decode::{Decoder, DecoderOwned},
-    io::AsyncRead,
     logging::{debug, error, trace, warn},
 };
 
@@ -106,7 +106,7 @@ impl<const N: usize> ReadFrame<N> {
     }
 }
 
-/// A framer that reads frames from an [`AsyncRead`] source and decodes them using a [`Decoder`] or [`DecoderOwned`].
+/// A framer that reads frames from an [`Read`] source and decodes them using a [`Decoder`] or [`DecoderOwned`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct FramedRead<const N: usize, D, R> {
@@ -177,7 +177,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
     ) -> Result<Option<D::Item>, ReadError<R::Error, D::Error>>
     where
         D: Decoder<'this>,
-        R: AsyncRead,
+        R: Read,
     {
         debug!(
             "total_consumed: {}, index: {}, buffer: {:?}",
@@ -331,7 +331,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
     pub async fn read_frame_owned(&mut self) -> Result<D::Item, ReadError<R::Error, D::Error>>
     where
         D: DecoderOwned,
-        R: AsyncRead,
+        R: Read,
     {
         loop {
             debug!(
@@ -481,7 +481,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
     ) -> impl Stream<Item = Result<D::Item, ReadError<R::Error, D::Error>>> + '_
     where
         D: DecoderOwned,
-        R: AsyncRead,
+        R: Read,
     {
         futures::stream::unfold((self, false), |(this, errored)| async move {
             if errored {

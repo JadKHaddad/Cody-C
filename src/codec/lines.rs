@@ -146,7 +146,6 @@ mod test {
         FramedRead, FramedWrite, ReadError,
         logging::error,
         tests::{framed_read, init_tracing, sink_stream},
-        tokio::Compat,
     };
 
     use super::*;

@@ -56,18 +56,6 @@ jobs:
       - name: Clippy --all-features
         run: cargo clippy --all --all-features -- -D warnings
 
-      - name: Clippy -- std
-        run: cargo clippy --no-default-features --features=std -- -D warnings
-
-      - name: Clippy -- futures-io
-        run: cargo clippy --no-default-features --features=futures-io -- -D warnings
-
-      - name: Clippy -- embedded-io-async
-        run: cargo clippy --no-default-features --features=embedded-io-async -- -D warnings
-
-      - name: Clippy -- tokio 
-        run: cargo clippy --no-default-features --features=tokio -- -D warnings
-
       - name: Clippy -- pretty-hex-fmt
         run: cargo clippy --no-default-features --features="pretty-hex-fmt" -- -D warnings
 
@@ -82,9 +70,6 @@ jobs:
 
       - name: Clippy -- tracing
         run: cargo clippy --no-default-features --features="tracing" -- -D warnings
-
-      - name: Clippy -- demo
-        run: cargo clippy --no-default-features --features="demo" -- -D warnings
 
       # Test
 

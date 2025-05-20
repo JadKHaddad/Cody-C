@@ -1,5 +1,6 @@
-//! Framed write sink. Transforms an [`AsyncWrite`] into a sink of frames.
+//! Framed write sink. Transforms an [`Write`] into a sink of frames.
 
+use embedded_io_async::Write;
 use futures::Sink;
 
 #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
@@ -7,7 +8,6 @@ use crate::logging::Formatter;
 
 use crate::{
     encode::Encoder,
-    io::AsyncWrite,
     logging::{debug, warn},
 };
 
@@ -133,7 +133,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
     pub async fn send_frame<I>(&mut self, item: I) -> Result<(), WriteError<W::Error, E::Error>>
     where
         E: Encoder<I>,
-        W: AsyncWrite,
+        W: Write,
     {
         match self.encoder.encode(item, &mut self.state.buffer) {
             Ok(size) => match self.writer.write_all(&self.state.buffer[..size]).await {
@@ -174,7 +174,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
     where
         I: 'this,
         E: Encoder<I>,
-        W: AsyncWrite,
+        W: Write,
     {
         futures::sink::unfold(self, |this, item: I| async move {
             this.send_frame(item).await?;
