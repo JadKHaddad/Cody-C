@@ -12,6 +12,7 @@ use crate::{
 use crate::logging::Formatter;
 
 /// An error that can occur while reading a frame.
+#[non_exhaustive]
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ReadError<I, D> {
@@ -180,7 +181,7 @@ impl<'buf, D, R> FramedRead<'buf, D, R> {
 
         if self.state.is_framable {
             if self.state.eof {
-                crate::logging::trace!("Framing on EOF");
+                trace!("Framing on EOF");
 
                 match self
                     .decoder

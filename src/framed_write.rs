@@ -8,10 +8,11 @@ use crate::logging::Formatter;
 
 use crate::{
     encode::Encoder,
-    logging::{debug, warn},
+    logging::{debug, error, trace},
 };
 
 /// An error that can occur while writing a frame.
+#[non_exhaustive]
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum WriteError<I, E> {
@@ -119,25 +120,25 @@ impl<'buf, E, W> FramedWrite<'buf, E, W> {
 
                     match self.writer.flush().await {
                         Ok(_) => {
-                            debug!("Flushed");
+                            trace!("Flushed");
 
                             Ok(())
                         }
                         Err(err) => {
-                            warn!("Failed to flush");
+                            error!("Failed to flush");
 
                             Err(WriteError::IO(err))
                         }
                     }
                 }
                 Err(err) => {
-                    warn!("Failed to write frame");
+                    error!("Failed to write frame");
 
                     Err(WriteError::IO(err))
                 }
             },
             Err(err) => {
-                warn!("Failed to encode frame");
+                error!("Failed to encode frame");
 
                 Err(WriteError::Encode(err))
             }
