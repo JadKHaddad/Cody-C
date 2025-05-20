@@ -1,4 +1,4 @@
-//! Lines codecs for encoding and decoding line bytes.
+//! Lines codecs for encoding and decoding lines.
 
 use core::{convert::Infallible, str::FromStr};
 
