@@ -10,6 +10,9 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 tokio = { version = "1", features = ["full"] }
+embedded-io-adapters = { version = "0.6.1", default-features = false, features = [
+    "tokio-1",
+] }
 heapless = { version = "0.8.0", default-features = false }
 cody-c = { path = "../", default-features = false }
 
