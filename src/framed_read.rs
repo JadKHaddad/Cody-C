@@ -14,7 +14,7 @@ use crate::logging::Formatter;
 /// An error that can occur while reading a frame from an [`AsyncRead`] source.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum FramedReadError<I, D> {
+pub enum ReadError<I, D> {
     /// An IO error occurred while reading from the underlying source.
     IO(I),
     /// An error occurred while decoding a frame.
@@ -27,7 +27,7 @@ pub enum FramedReadError<I, D> {
     EOF,
 }
 
-impl<I, D> core::fmt::Display for FramedReadError<I, D>
+impl<I, D> core::fmt::Display for ReadError<I, D>
 where
     I: core::fmt::Display,
     D: core::fmt::Display,
@@ -43,7 +43,7 @@ where
     }
 }
 
-impl<I, D> core::error::Error for FramedReadError<I, D>
+impl<I, D> core::error::Error for ReadError<I, D>
 where
     I: core::fmt::Display + core::fmt::Debug,
     D: core::fmt::Display + core::fmt::Debug,
@@ -238,7 +238,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
     /// - `Err(error)` if an error occurred. The caller should stop reading.
     pub async fn read_frame<'this>(
         &'this mut self,
-    ) -> Result<Option<D::Item>, FramedReadError<R::Error, D::Error>>
+    ) -> Result<Option<D::Item>, ReadError<R::Error, D::Error>>
     where
         D: Decoder<'this>,
         R: AsyncRead,
@@ -291,15 +291,15 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
                         if self.state.index != self.state.total_consumed {
                             error!("Bytes remaining on stream");
 
-                            return Err(FramedReadError::BytesRemainingOnStream);
+                            return Err(ReadError::BytesRemainingOnStream);
                         }
 
-                        return Err(FramedReadError::EOF);
+                        return Err(ReadError::EOF);
                     }
                     Err(err) => {
                         error!("Failed to decode frame");
 
-                        return Err(FramedReadError::Decode(err));
+                        return Err(ReadError::Decode(err));
                     }
                 };
             }
@@ -343,7 +343,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
                 Err(err) => {
                     error!("Failed to decode frame");
 
-                    return Err(FramedReadError::Decode(err));
+                    return Err(ReadError::Decode(err));
                 }
             }
         }
@@ -351,7 +351,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
         if self.state.index >= self.state.buffer.len() {
             error!("Buffer too small");
 
-            return Err(FramedReadError::BufferTooSmall);
+            return Err(ReadError::BufferTooSmall);
         }
 
         trace!("Reading");
@@ -364,7 +364,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
             Err(err) => {
                 error!("Failed to read");
 
-                Err(FramedReadError::IO(err))
+                Err(ReadError::IO(err))
             }
             Ok(0) => {
                 warn!("Got EOF");
@@ -392,7 +392,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
     /// Returns:
     /// - `Ok(frame)` if a frame was successfully decoded. Call `read_frame_owned` again to read more bytes.
     /// - `Err(error)` if an error occurred. The caller should stop reading.
-    pub async fn read_frame_owned(&mut self) -> Result<D::Item, FramedReadError<R::Error, D::Error>>
+    pub async fn read_frame_owned(&mut self) -> Result<D::Item, ReadError<R::Error, D::Error>>
     where
         D: DecoderOwned,
         R: AsyncRead,
@@ -445,15 +445,15 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
                             if self.state.index != self.state.total_consumed {
                                 error!("Bytes remaining on stream");
 
-                                return Err(FramedReadError::BytesRemainingOnStream);
+                                return Err(ReadError::BytesRemainingOnStream);
                             }
 
-                            return Err(FramedReadError::EOF);
+                            return Err(ReadError::EOF);
                         }
                         Err(err) => {
                             error!("Failed to decode frame");
 
-                            return Err(FramedReadError::Decode(err));
+                            return Err(ReadError::Decode(err));
                         }
                     };
                 }
@@ -495,14 +495,14 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
                     Err(err) => {
                         error!("Failed to decode frame");
 
-                        return Err(FramedReadError::Decode(err));
+                        return Err(ReadError::Decode(err));
                     }
                 }
             }
             if self.state.index >= self.state.buffer.len() {
                 error!("Buffer too small");
 
-                return Err(FramedReadError::BufferTooSmall);
+                return Err(ReadError::BufferTooSmall);
             }
 
             trace!("Reading");
@@ -515,7 +515,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
                 Err(err) => {
                     error!("Failed to read");
 
-                    return Err(FramedReadError::IO(err));
+                    return Err(ReadError::IO(err));
                 }
                 Ok(0) => {
                     warn!("Got EOF");
@@ -542,7 +542,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
     /// Converts the [`FramedRead`] into a stream of frames.
     pub fn stream(
         &mut self,
-    ) -> impl Stream<Item = Result<D::Item, FramedReadError<R::Error, D::Error>>> + '_
+    ) -> impl Stream<Item = Result<D::Item, ReadError<R::Error, D::Error>>> + '_
     where
         D: DecoderOwned,
         R: AsyncRead,

@@ -14,14 +14,14 @@ use crate::{
 /// An error that can occur while writing a frame.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum FramedWriteError<I, E> {
+pub enum WriteError<I, E> {
     /// An IO error occurred while writing to the underlying sink.
     IO(I),
     /// An error occurred while encoding a frame.
     Encode(E),
 }
 
-impl<I, E> core::fmt::Display for FramedWriteError<I, E>
+impl<I, E> core::fmt::Display for WriteError<I, E>
 where
     I: core::fmt::Display,
     E: core::fmt::Display,
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<I, E> core::error::Error for FramedWriteError<I, E>
+impl<I, E> core::error::Error for WriteError<I, E>
 where
     I: core::fmt::Display + core::fmt::Debug,
     E: core::fmt::Display + core::fmt::Debug,
@@ -164,10 +164,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
     }
 
     /// Writes a frame to the underlying `writer` and flushes it.
-    pub async fn send_frame<I>(
-        &mut self,
-        item: I,
-    ) -> Result<(), FramedWriteError<W::Error, E::Error>>
+    pub async fn send_frame<I>(&mut self, item: I) -> Result<(), WriteError<W::Error, E::Error>>
     where
         E: Encoder<I>,
         W: AsyncWrite,
@@ -186,20 +183,20 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
                         Err(err) => {
                             warn!("Failed to flush");
 
-                            Err(FramedWriteError::IO(err))
+                            Err(WriteError::IO(err))
                         }
                     }
                 }
                 Err(err) => {
                     warn!("Failed to write frame");
 
-                    Err(FramedWriteError::IO(err))
+                    Err(WriteError::IO(err))
                 }
             },
             Err(err) => {
                 warn!("Failed to encode frame");
 
-                Err(FramedWriteError::Encode(err))
+                Err(WriteError::Encode(err))
             }
         }
     }
@@ -207,7 +204,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
     /// Converts the [`FramedWrite`] into a sink.
     pub fn sink<'this, I>(
         &'this mut self,
-    ) -> impl Sink<I, Error = FramedWriteError<W::Error, E::Error>> + 'this
+    ) -> impl Sink<I, Error = WriteError<W::Error, E::Error>> + 'this
     where
         I: 'this,
         E: Encoder<I>,
@@ -216,7 +213,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
         futures::sink::unfold(self, |this, item: I| async move {
             this.send_frame(item).await?;
 
-            Ok::<_, FramedWriteError<W::Error, E::Error>>(this)
+            Ok::<_, WriteError<W::Error, E::Error>>(this)
         })
     }
 }

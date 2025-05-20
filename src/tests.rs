@@ -44,7 +44,7 @@ macro_rules! framed_read {
                     error!("Error: {:?}", _err);
 
                     $(
-                        assert!(matches!(_err, FramedReadError::$err));
+                        assert!(matches!(_err, ReadError::$err));
                     )?
 
                     break;
