@@ -36,4 +36,4 @@ pub mod futures_io;
 pub mod embedded_io_async;
 
 #[cfg(test)]
-mod test;
+mod tests;

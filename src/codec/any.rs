@@ -196,8 +196,10 @@ mod test {
     use tokio::io::AsyncWriteExt;
 
     use crate::{
-        FramedRead, FramedReadError, FramedWrite, framed_read, logging::error, sink_stream,
-        test::init_tracing, tokio::Compat,
+        FramedRead, FramedReadError, FramedWrite,
+        logging::error,
+        tests::{framed_read, init_tracing, sink_stream},
+        tokio::Compat,
     };
 
     use super::*;

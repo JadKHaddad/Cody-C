@@ -9,7 +9,6 @@ pub fn init_tracing() {
     .ok();
 }
 
-#[macro_export]
 macro_rules! framed_read {
     ($items:ident, $expected:ident, $decoder:ident) => {
         framed_read!($items, $expected, $decoder, 1024, 1024);
@@ -57,7 +56,6 @@ macro_rules! framed_read {
     };
 }
 
-#[macro_export]
 macro_rules! sink_stream {
     ($encoder:ident, $decoder:ident, $items:ident) => {
         let items_clone = $items.clone();
@@ -90,3 +88,6 @@ macro_rules! sink_stream {
         assert_eq!($items, collected);
     };
 }
+
+pub(crate) use framed_read;
+pub(crate) use sink_stream;
