@@ -43,3 +43,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 name = "zerocopy"
 path = "examples/zerocopy.rs"
 required-features = []
+
+[[example]]
+name = "stream"
+path = "examples/stream.rs"
+required-features = []
