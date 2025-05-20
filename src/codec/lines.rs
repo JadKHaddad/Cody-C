@@ -9,7 +9,7 @@ use crate::{
     encode::Encoder,
 };
 
-/// A codec that decodes bytes into a line and encodes a line into bytes.
+/// A codec that decodes `bytes` into a `line of bytes` and encodes a `line of bytes` into `bytes`.
 ///
 /// # Note
 ///
@@ -120,30 +120,30 @@ impl<const N: usize> From<LinesCodec> for LinesCodecOwned<N> {
 /// Error returned by [`LinesCodecOwned::decode_owned`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum LinesCodecOwnedError {
+pub enum LinesOwnedDecodeError {
     /// The buffer is too small to fit the decoded bytes.
     BufferTooSmall,
 }
 
-impl core::fmt::Display for LinesCodecOwnedError {
+impl core::fmt::Display for LinesOwnedDecodeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            LinesCodecOwnedError::BufferTooSmall => write!(f, "buffer too small"),
+            LinesOwnedDecodeError::BufferTooSmall => write!(f, "buffer too small"),
         }
     }
 }
 
-impl core::error::Error for LinesCodecOwnedError {}
+impl core::error::Error for LinesOwnedDecodeError {}
 
 impl<const N: usize> DecoderOwned for LinesCodecOwned<N> {
     type Item = Vec<u8, N>;
-    type Error = LinesCodecOwnedError;
+    type Error = LinesOwnedDecodeError;
 
     fn decode_owned(&mut self, src: &mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         match Decoder::decode(&mut self.inner, src) {
             Ok(Some((bytes, size))) => {
                 let item =
-                    Vec::from_slice(bytes).map_err(|_| LinesCodecOwnedError::BufferTooSmall)?;
+                    Vec::from_slice(bytes).map_err(|_| LinesOwnedDecodeError::BufferTooSmall)?;
                 Ok(Some((item, size)))
             }
             Ok(None) => Ok(None),
@@ -157,6 +157,76 @@ impl<const N: usize> Encoder<Vec<u8, N>> for LinesCodecOwned<N> {
 
     fn encode(&mut self, item: Vec<u8, N>, dst: &mut [u8]) -> Result<usize, Self::Error> {
         Encoder::encode(&mut self.inner, &item, dst)
+    }
+}
+
+/// A codec that decodes `bytes` into an [`str`] line and encodes an [`str`] line into `bytes`.
+///
+/// # Note
+///
+/// This codec tracks progress using an internal state of the underlying buffer, and it must not be used across multiple framing sessions.
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct StrLinesCodec {
+    inner: LinesCodec,
+}
+
+impl StrLinesCodec {
+    /// Creates a new [`StrLinesCodec`].
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            inner: LinesCodec::new(),
+        }
+    }
+}
+
+impl From<LinesCodec> for StrLinesCodec {
+    fn from(inner: LinesCodec) -> Self {
+        Self { inner }
+    }
+}
+
+/// Error returned by [`StrLinesCodec::encode`].
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum StrLinesDecodeError {
+    /// utf8 error.
+    Utf8(core::str::Utf8Error),
+}
+
+impl core::fmt::Display for StrLinesDecodeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            StrLinesDecodeError::Utf8(err) => write!(f, "utf8 error: {}", err),
+        }
+    }
+}
+
+impl core::error::Error for StrLinesDecodeError {}
+
+impl<'buf> Decoder<'buf> for StrLinesCodec {
+    type Item = &'buf str;
+    type Error = StrLinesDecodeError;
+
+    fn decode(&mut self, src: &'buf mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
+        match Decoder::decode(&mut self.inner, src) {
+            Ok(Some((bytes, size))) => {
+                let item = core::str::from_utf8(bytes).map_err(StrLinesDecodeError::Utf8)?;
+
+                Ok(Some((item, size)))
+            }
+            Ok(None) => Ok(None),
+            Err(_) => unreachable!(),
+        }
+    }
+}
+
+impl<'a> Encoder<&'a str> for StrLinesCodec {
+    type Error = LinesEncodeError;
+
+    fn encode(&mut self, item: &'a str, dst: &mut [u8]) -> Result<usize, Self::Error> {
+        Encoder::encode(&mut self.inner, item.as_bytes(), dst)
     }
 }
 
@@ -241,5 +311,54 @@ mod test {
         let encoder = LinesCodecOwned::<32>::new();
 
         sink_stream!(encoder, decoder, items);
+    }
+
+    #[tokio::test]
+    async fn framed_read_str() {
+        init_tracing();
+
+        let items: &[&str] = &[
+            "Hel",
+            "lo\n",
+            "Hell",
+            "o, world!\n",
+            "H",
+            "ei\r\n",
+            "sup",
+            "\n",
+            "Hey\r",
+            "\n",
+            "How ",
+            "are y",
+        ];
+
+        let decoder = StrLinesCodec::new();
+
+        let expected: &[&[u8]] = &[];
+        framed_read!(items, expected, decoder, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 1, 4, BufferTooSmall);
+
+        framed_read!(items, expected, decoder, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 2, 4, BufferTooSmall);
+
+        framed_read!(items, expected, decoder, 4, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 1, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 2, BufferTooSmall);
+        framed_read!(items, expected, decoder, 4, 4, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"Hello"];
+        framed_read!(items, expected, decoder, 8, BufferTooSmall);
+
+        let expected: &[&[u8]] = &[b"Hello", b"Hello, world!", b"Hei", b"sup", b"Hey"];
+        framed_read!(items, expected, decoder, 16, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 16, 1, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 16, 2, BytesRemainingOnStream);
+        framed_read!(items, expected, decoder, 16, 4, BytesRemainingOnStream);
+
+        framed_read!(items, expected, decoder);
     }
 }
