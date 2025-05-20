@@ -12,6 +12,8 @@
         "repr",
         "rustdoc",
         "serde",
+        "Swatinem",
+        "taiki",
         "zerocopy"
     ],
     "ignorePaths": [

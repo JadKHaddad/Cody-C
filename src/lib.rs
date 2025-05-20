@@ -35,9 +35,5 @@ pub mod futures_io;
 #[cfg_attr(docsrs, doc(cfg(feature = "embedded-io-async")))]
 pub mod embedded_io_async;
 
-#[cfg(feature = "demo")]
-#[cfg_attr(docsrs, doc(cfg(feature = "demo")))]
-pub mod demo;
-
 #[cfg(test)]
 mod test;

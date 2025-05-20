@@ -94,5 +94,3 @@ jobs:
       - name: Test -- buffer-early-shift
         run: cargo nextest run --features buffer-early-shift
 
-      - name: Test -- demo
-        run: cargo nextest run --features demo
