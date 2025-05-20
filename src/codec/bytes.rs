@@ -47,8 +47,7 @@ impl core::fmt::Display for BytesEncodeError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for BytesEncodeError {}
+impl core::error::Error for BytesEncodeError {}
 
 impl Encoder<&[u8]> for BytesCodec {
     type Error = BytesEncodeError;

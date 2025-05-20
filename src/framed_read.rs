@@ -43,11 +43,10 @@ where
     }
 }
 
-#[cfg(feature = "std")]
-impl<I, D> std::error::Error for FramedReadError<I, D>
+impl<I, D> core::error::Error for FramedReadError<I, D>
 where
-    I: core::fmt::Display + std::fmt::Debug,
-    D: core::fmt::Display + std::fmt::Debug,
+    I: core::fmt::Display + core::fmt::Debug,
+    D: core::fmt::Display + core::fmt::Debug,
 {
 }
 

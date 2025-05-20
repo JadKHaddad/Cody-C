@@ -102,8 +102,7 @@ impl core::fmt::Display for AnyDelimiterEncodeError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for AnyDelimiterEncodeError {}
+impl core::error::Error for AnyDelimiterEncodeError {}
 
 impl Encoder<&[u8]> for AnyDelimiterCodec<'_> {
     type Error = AnyDelimiterEncodeError;

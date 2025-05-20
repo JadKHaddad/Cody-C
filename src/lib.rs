@@ -2,7 +2,7 @@
 //!
 //! A simple and `zerocopy` codec for encoding and decoding data in `no_std` environments.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![no_std]
 #![deny(unsafe_code)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]

@@ -79,8 +79,7 @@ impl core::fmt::Display for LinesEncodeError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for LinesEncodeError {}
+impl core::error::Error for LinesEncodeError {}
 
 impl Encoder<&[u8]> for LinesCodec {
     type Error = LinesEncodeError;
