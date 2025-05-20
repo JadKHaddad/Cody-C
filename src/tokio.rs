@@ -1,7 +1,8 @@
 //! Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) and [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
 
-use crate::io::{AsyncRead as CrateAsyncRead, AsyncWrite as CrateAsyncWrite};
 use core::borrow::{Borrow, BorrowMut};
+
+use crate::io::{AsyncRead as CrateAsyncRead, AsyncWrite as CrateAsyncWrite};
 
 /// Compatibility wrapper for [`Tokio's AsyncRead`](tokio::io::AsyncRead) and [`Tokio's AsyncWrite`](tokio::io::AsyncWrite).
 ///

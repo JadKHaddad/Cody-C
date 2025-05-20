@@ -1,7 +1,8 @@
 //! Compatibility wrapper for [`Embedded-io-async's Read`](embedded_io_async::Read) and [`Embedded-io-async's Write`](embedded_io_async::Write).
 
-use crate::io::{AsyncRead as CrateRead, AsyncWrite as CrateWrite};
 use core::borrow::{Borrow, BorrowMut};
+
+use crate::io::{AsyncRead as CrateRead, AsyncWrite as CrateWrite};
 
 /// Compatibility wrapper for [`Embedded-io-async's Read`](embedded_io_async::Read) and [`Embedded-io-async's Write`](embedded_io_async::Write).
 ///

@@ -1,7 +1,8 @@
 //! Compatibility wrapper for [`Futures-io' AsyncRead`](futures::io::AsyncRead) and [`Futures-io' AsyncWrite`](futures::io::AsyncWrite).
 
-use crate::io::{AsyncRead as CrateAsyncRead, AsyncWrite as CrateAsyncWrite};
 use core::borrow::{Borrow, BorrowMut};
+
+use crate::io::{AsyncRead as CrateAsyncRead, AsyncWrite as CrateAsyncWrite};
 
 /// Compatibility wrapper for [`Futures-io' AsyncRead`](futures::io::AsyncRead) and [`Futures-io' AsyncWrite`](futures::io::AsyncWrite).
 ///

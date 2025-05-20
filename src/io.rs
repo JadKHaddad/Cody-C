@@ -26,8 +26,6 @@ impl<T: AsyncRead> AsyncRead for &mut T {
 }
 
 /// An asynchronous writer.
-///
-/// The core `Sink` functionality of this crate is built around this trait.
 pub trait AsyncWrite {
     /// The type of error that can be returned by [`AsyncWrite`] operations.
     type Error;
@@ -44,9 +42,13 @@ impl AsyncWrite for &mut [u8] {
 
     async fn write_all<'a>(&'a mut self, buf: &'a [u8]) -> Result<(), Self::Error> {
         let amt = core::cmp::min(buf.len(), self.len());
+
         let (a, b) = core::mem::take(self).split_at_mut(amt);
+
         a.copy_from_slice(&buf[..amt]);
+
         *self = b;
+
         Ok(())
     }
 
