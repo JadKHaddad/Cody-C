@@ -11,7 +11,7 @@ use crate::{
 #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
 use crate::logging::Formatter;
 
-/// An error that can occur while reading a frame from an [`AsyncRead`] source.
+/// An error that can occur while reading a frame.
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ReadError<I, D> {

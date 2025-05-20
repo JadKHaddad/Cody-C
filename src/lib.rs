@@ -11,17 +11,13 @@
 pub mod codec;
 pub mod decode;
 pub mod encode;
-pub mod framed_read;
-pub mod framed_write;
 pub mod io;
-pub(crate) mod logging;
 
-pub use codec::*;
-pub use decode::*;
-pub use encode::*;
-pub use framed_read::*;
-pub use framed_write::*;
-pub use io::*;
+mod framed_read;
+pub use framed_read::{FramedRead, ReadError};
+
+mod framed_write;
+pub use framed_write::{FramedWrite, WriteError};
 
 #[cfg(any(test, feature = "tokio"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio")))]
@@ -34,6 +30,8 @@ pub mod futures_io;
 #[cfg(feature = "embedded-io-async")]
 #[cfg_attr(docsrs, doc(cfg(feature = "embedded-io-async")))]
 pub mod embedded_io_async;
+
+pub(crate) mod logging;
 
 #[cfg(test)]
 mod tests;
