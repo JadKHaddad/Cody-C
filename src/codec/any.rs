@@ -130,18 +130,6 @@ impl<'a, const N: usize> AnyDelimiterCodecOwned<'a, N> {
     pub const fn delimiter(&self) -> &'a [u8] {
         self.inner.delimiter
     }
-
-    /// Returns the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub const fn seen(&self) -> usize {
-        self.inner.seen
-    }
-
-    /// Clears the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub fn clear(&mut self) {
-        self.inner.seen = 0;
-    }
 }
 
 impl<'a, const N: usize> From<AnyDelimiterCodec<'a>> for AnyDelimiterCodecOwned<'a, N> {
