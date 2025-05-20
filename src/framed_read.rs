@@ -52,8 +52,7 @@ where
 
 /// Internal state for reading a frame.
 #[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct ReadFrame<const N: usize> {
+struct ReadFrame<'buf> {
     /// The current index in the buffer.
     ///
     /// Represents the number of bytes read into the buffer.
@@ -69,32 +68,13 @@ pub struct ReadFrame<const N: usize> {
     /// Total number of bytes decoded in a framing round.
     total_consumed: usize,
     /// The underlying buffer to read into.
-    buffer: [u8; N],
+    buffer: &'buf mut [u8],
 }
 
-impl<const N: usize> Default for ReadFrame<N> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const N: usize> ReadFrame<N> {
+impl<'buf> ReadFrame<'buf> {
     /// Creates a new [`ReadFrame`].
     #[inline]
-    pub const fn new() -> Self {
-        Self {
-            index: 0,
-            eof: false,
-            is_framable: false,
-            shift: false,
-            total_consumed: 0,
-            buffer: [0_u8; N],
-        }
-    }
-
-    /// Creates a new [`ReadFrame`] with the given `buffer`.
-    #[inline]
-    pub const fn new_with_buffer(buffer: [u8; N]) -> Self {
+    const fn new(buffer: &'buf mut [u8]) -> Self {
         Self {
             index: 0,
             eof: false,
@@ -104,33 +84,30 @@ impl<const N: usize> ReadFrame<N> {
             buffer,
         }
     }
+
+    /// Returns the number of bytes that can be framed.
+    #[inline]
+    #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
+    const fn framable(&self) -> usize {
+        self.index - self.total_consumed
+    }
 }
 
 /// A framer that reads frames from an [`Read`] source and decodes them using a [`Decoder`] or [`DecoderOwned`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct FramedRead<const N: usize, D, R> {
-    state: ReadFrame<N>,
+pub struct FramedRead<'buf, D, R> {
+    state: ReadFrame<'buf>,
     decoder: D,
     reader: R,
 }
 
-impl<const N: usize, D, R> FramedRead<N, D, R> {
+impl<'buf, D, R> FramedRead<'buf, D, R> {
     /// Creates a new [`FramedRead`] with the given `decoder` and `reader`.
     #[inline]
-    pub fn new(decoder: D, reader: R) -> Self {
+    pub fn new(buffer: &'buf mut [u8], decoder: D, reader: R) -> Self {
         Self {
-            state: ReadFrame::new(),
-            decoder,
-            reader,
-        }
-    }
-
-    /// Creates a new [`FramedRead`] with the given `decoder`, `reader`, and `buffer`.
-    #[inline]
-    pub fn new_with_buffer(decoder: D, reader: R, buffer: [u8; N]) -> Self {
-        Self {
-            state: ReadFrame::new_with_buffer(buffer),
+            state: ReadFrame::new(buffer),
             decoder,
             reader,
         }

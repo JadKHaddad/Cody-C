@@ -31,8 +31,9 @@ macro_rules! framed_read {
             }
         });
 
+        let buffer = &mut [0_u8; $buffer_size];
         let mut framer =
-            FramedRead::new_with_buffer(decoder_clone, embedded_io_adapters::tokio_1::FromTokio::new(read), [0_u8; $buffer_size]);
+            FramedRead::new(buffer, decoder_clone, embedded_io_adapters::tokio_1::FromTokio::new(read));
 
         loop {
             match framer.read_frame().await {
@@ -63,10 +64,11 @@ macro_rules! sink_stream {
         let (read, write) = tokio::io::duplex(1024);
 
         tokio::spawn(async move {
-            let mut writer = FramedWrite::new_with_buffer(
+            let buffer = &mut [0_u8; 1024];
+            let mut writer = FramedWrite::new(
+                buffer,
                 $encoder,
                 embedded_io_adapters::tokio_1::FromTokio::new(write),
-                [0_u8; 1024],
             );
             let sink = writer.sink();
 
@@ -77,10 +79,11 @@ macro_rules! sink_stream {
             }
         });
 
-        let mut framer = FramedRead::new_with_buffer(
+        let buffer = &mut [0_u8; 1024];
+        let mut framer = FramedRead::new(
+            buffer,
             $decoder,
             embedded_io_adapters::tokio_1::FromTokio::new(read),
-            [0_u8; 1024],
         );
 
         let stream = framer.stream();

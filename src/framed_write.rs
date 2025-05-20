@@ -43,28 +43,15 @@ where
 
 /// Internal state for writing a frame.
 #[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct WriteFrame<const N: usize> {
+struct WriteFrame<'buf> {
     /// The underlying buffer to write to.
-    buffer: [u8; N],
+    buffer: &'buf mut [u8],
 }
 
-impl<const N: usize> Default for WriteFrame<N> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const N: usize> WriteFrame<N> {
+impl<'buf> WriteFrame<'buf> {
     /// Creates a new [`WriteFrame`].
     #[inline]
-    pub const fn new() -> Self {
-        Self { buffer: [0_u8; N] }
-    }
-
-    /// Creates a new [`WriteFrame`] with the given `buffer`.
-    #[inline]
-    pub const fn new_with_buffer(buffer: [u8; N]) -> Self {
+    const fn new(buffer: &'buf mut [u8]) -> Self {
         Self { buffer }
     }
 }
@@ -72,28 +59,18 @@ impl<const N: usize> WriteFrame<N> {
 /// A sink that writes encoded frames into an underlying writable sink using an [`Encoder`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub struct FramedWrite<const N: usize, E, W> {
-    state: WriteFrame<N>,
+pub struct FramedWrite<'buf, E, W> {
+    state: WriteFrame<'buf>,
     encoder: E,
     writer: W,
 }
 
-impl<const N: usize, E, W> FramedWrite<N, E, W> {
+impl<'buf, E, W> FramedWrite<'buf, E, W> {
     /// Creates a new [`FramedWrite`] with the given `encoder` and `writer`.
     #[inline]
-    pub fn new(encoder: E, writer: W) -> Self {
+    pub fn new(buffer: &'buf mut [u8], encoder: E, writer: W) -> Self {
         Self {
-            state: WriteFrame::new(),
-            encoder,
-            writer,
-        }
-    }
-
-    /// Creates a new [`FramedWrite`] with the given `encoder`, `writer`, and `buffer`.
-    #[inline]
-    pub fn new_with_buffer(encoder: E, writer: W, buffer: [u8; N]) -> Self {
-        Self {
-            state: WriteFrame::new_with_buffer(buffer),
+            state: WriteFrame::new(buffer),
             encoder,
             writer,
         }
@@ -135,7 +112,7 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
         E: Encoder<I>,
         W: Write,
     {
-        match self.encoder.encode(item, &mut self.state.buffer) {
+        match self.encoder.encode(item, self.state.buffer) {
             Ok(size) => match self.writer.write_all(&self.state.buffer[..size]).await {
                 Ok(_) => {
                     debug!("Wrote. buffer: {:?}", Formatter(&self.state.buffer[..size]));
