@@ -9,7 +9,7 @@ use crate::{
     encode::Encoder,
 };
 
-/// A codec that decodes a sequence of bytes into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes.
+/// A codec that decodes bytes into bytes and encodes bytes into bytes.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct BytesCodec {}
@@ -31,11 +31,11 @@ impl<'buf> Decoder<'buf> for BytesCodec {
     }
 }
 
-/// An error that can occur when encoding a sequence of bytes.
+/// Error returned by [`BytesCodec::encode`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum BytesEncodeError {
-    /// The input buffer is too small to fit the sequence of bytes.
+    /// The input buffer is too small to fit the bytes.
     BufferTooSmall,
 }
 

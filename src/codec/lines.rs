@@ -9,7 +9,7 @@ use crate::{
     encode::Encoder,
 };
 
-/// A codec that decodes a sequence of bytes into a line and encodes a line into a sequence of bytes.
+/// A codec that decodes bytes into a line and encodes a line into bytes.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LinesCodec {
@@ -63,7 +63,7 @@ impl<'buf> Decoder<'buf> for LinesCodec {
     }
 }
 
-/// An error that can occur when encoding a line into a sequence of bytes.
+/// Error returned by [`LinesCodec::encode`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LinesEncodeError {

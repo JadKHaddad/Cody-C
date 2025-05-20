@@ -1,4 +1,4 @@
-//! An any delimiter codec for encoding and decoding bytes.
+//! An any delimiter codecs for encoding and decoding bytes.
 
 use core::convert::Infallible;
 
@@ -9,7 +9,7 @@ use crate::{
     encode::Encoder,
 };
 
-/// A codec that decodes a sequence of bytes ending with a `delimiter` into a sequence of bytes and encodes a sequence of bytes into a sequence of bytes ending with a `delimiter`.
+/// A codec that decodes bytes ending with a `delimiter` into bytes and encodes bytes into bytes ending with a `delimiter`.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AnyDelimiterCodec<'a> {
@@ -86,11 +86,11 @@ impl<'buf> Decoder<'buf> for AnyDelimiterCodec<'_> {
     }
 }
 
-/// An error that can occur when encoding a sequence of bytes into a sequence of bytes ending with a `delimiter`.
+/// Error returned by [`AnyDelimiterCodec::encode`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnyDelimiterEncodeError {
-    /// The input buffer is too small to fit the encoded sequence of bytes.
+    /// The input buffer is too small to fit the encoded bytes.
     BufferTooSmall,
 }
 
