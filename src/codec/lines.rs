@@ -10,6 +10,10 @@ use crate::{
 };
 
 /// A codec that decodes bytes into a line and encodes a line into bytes.
+///
+/// # Note
+///
+/// This codec tracks progress using an internal state of the underlying buffer, and it must not be used across multiple framing sessions.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LinesCodec {
@@ -87,6 +91,10 @@ impl Encoder<&[u8]> for LinesCodec {
 }
 
 /// An owned [`LinesCodec`].
+///
+/// # Note
+///
+/// This codec tracks progress using an internal state of the underlying buffer, and it must not be used across multiple framing sessions.
 #[derive(Debug, Clone, Default)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct LinesCodecOwned<const N: usize> {

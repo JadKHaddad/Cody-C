@@ -10,6 +10,10 @@ use crate::{
 };
 
 /// A codec that decodes bytes ending with a `delimiter` into bytes and encodes bytes into bytes ending with a `delimiter`.
+///
+/// # Note
+///
+/// This codec tracks progress using an internal state of the underlying buffer, and it must not be used across multiple framing sessions.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AnyDelimiterCodec<'a> {
@@ -110,6 +114,10 @@ impl Encoder<&[u8]> for AnyDelimiterCodec<'_> {
 }
 
 /// An owned [`AnyDelimiterCodec`].
+///
+/// # Note
+///
+/// This codec tracks progress using an internal state of the underlying buffer, and it must not be used across multiple framing sessions.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct AnyDelimiterCodecOwned<'a, const N: usize> {
