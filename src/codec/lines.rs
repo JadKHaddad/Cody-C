@@ -23,18 +23,6 @@ impl LinesCodec {
     pub const fn new() -> Self {
         Self { seen: 0 }
     }
-
-    /// Returns the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub const fn seen(&self) -> usize {
-        self.seen
-    }
-
-    /// Clears the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub fn clear(&mut self) {
-        self.seen = 0;
-    }
 }
 
 impl<'buf> Decoder<'buf> for LinesCodec {
@@ -112,18 +100,6 @@ impl<const N: usize> LinesCodecOwned<N> {
         Self {
             inner: LinesCodec::new(),
         }
-    }
-
-    /// Returns the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub const fn seen(&self) -> usize {
-        self.inner.seen()
-    }
-
-    /// Clears the number of bytes of the slice that have been seen so far.
-    #[inline]
-    pub fn clear(&mut self) {
-        self.inner.clear();
     }
 }
 
