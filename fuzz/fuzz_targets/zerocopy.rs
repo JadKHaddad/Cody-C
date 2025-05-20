@@ -1,8 +1,10 @@
 //! If we panic!, we lose.
 //!
 //! ```not_rust
-//! cargo +nightly fuzz run zerocopy
+//! cargo +nightly fuzz run zerocopy -- -max_len=1022
 //! ```
+//! 1022 to leave room for '\r\n' (LinesCodec) and '#' (AnyDelimiterCodec).
+//! The read/write buffers are 1024 bytes.
 
 #![no_main]
 
@@ -14,7 +16,6 @@ use std::{
 use cody_c::{
     codec::{
         any::AnyDelimiterCodec,
-        bytes::BytesCodec,
         lines::{LinesCodec, StrLinesCodec},
     },
     decode::Decoder,
@@ -36,10 +37,6 @@ fuzz_target!(|data: &[u8]| {
         .await
         .unwrap();
 
-        fuzz(data, BytesCodec::new(), BytesCodec::new(), Ok)
-            .await
-            .unwrap();
-
         fuzz(data, LinesCodec::new(), LinesCodec::new(), |data| {
             (!data.contains(&b'\n')).then_some(data).ok_or(())
         })
@@ -56,6 +53,7 @@ fuzz_target!(|data: &[u8]| {
     });
 });
 
+// Note: ByteCodec can not be fuzzed like this
 async fn fuzz<'data, D, E, F, T>(
     data: &'data [u8],
     encoder: E,
@@ -71,7 +69,7 @@ where
     F: FnOnce(&'data [u8]) -> Result<T, ()>,
     T: 'data + Clone + Debug + PartialEq,
 {
-    // If we cant create and item from the data, we dont have to bother
+    // If we can not create an item from the data, we do not have to bother with the rest.
     let item = match map(data) {
         Ok(item) => item,
         Err(_) => return Ok(()),
@@ -80,7 +78,7 @@ where
     let (read, write) = tokio::io::duplex(32);
 
     let item_clone = item.clone();
-    let read_buf = &mut [0u8; 64];
+    let read_buf = &mut [0u8; 1024];
     let mut framed_read = FramedRead::new(decoder, FromTokio::new(read), read_buf);
 
     let reader = async move {
@@ -100,7 +98,7 @@ where
         }
     };
 
-    let write_buf = &mut [0u8; 64];
+    let write_buf = &mut [0u8; 1024];
     let mut framed_write = FramedWrite::new(encoder, FromTokio::new(write), write_buf);
 
     let writer = async move {
@@ -116,14 +114,3 @@ where
 
     Ok(())
 }
-
-/*
-TODO:
-
-This fails because of the bytes codec and the duplex stream being 32 bytes long.
-left: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-right: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-
-TODO:
-How do we want to handle the read/write buffer size?
-*/
