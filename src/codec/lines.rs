@@ -117,14 +117,33 @@ impl<const N: usize> From<LinesCodec> for LinesCodecOwned<N> {
     }
 }
 
+/// Error returned by [`LinesCodecOwned::decode_owned`].
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum LinesCodecOwnedError {
+    /// The buffer is too small to fit the decoded bytes.
+    BufferTooSmall,
+}
+
+impl core::fmt::Display for LinesCodecOwnedError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            LinesCodecOwnedError::BufferTooSmall => write!(f, "buffer too small"),
+        }
+    }
+}
+
+impl core::error::Error for LinesCodecOwnedError {}
+
 impl<const N: usize> DecoderOwned for LinesCodecOwned<N> {
     type Item = Vec<u8, N>;
-    type Error = ();
+    type Error = LinesCodecOwnedError;
 
     fn decode_owned(&mut self, src: &mut [u8]) -> Result<Option<(Self::Item, usize)>, Self::Error> {
         match Decoder::decode(&mut self.inner, src) {
             Ok(Some((bytes, size))) => {
-                let item = Vec::from_slice(bytes)?;
+                let item =
+                    Vec::from_slice(bytes).map_err(|_| LinesCodecOwnedError::BufferTooSmall)?;
                 Ok(Some((item, size)))
             }
             Ok(None) => Ok(None),
