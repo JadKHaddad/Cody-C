@@ -65,7 +65,7 @@ jobs:
       - name: Clippy -- embedded-io-async
         run: cargo clippy --no-default-features --features=embedded-io-async -- -D warnings
 
-      - name: Clippy -- tokio
+      - name: Clippy -- tokio 
         run: cargo clippy --no-default-features --features=tokio -- -D warnings
 
       - name: Clippy -- pretty-hex-fmt
