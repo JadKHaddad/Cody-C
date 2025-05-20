@@ -5,6 +5,7 @@
         "byteorder",
         "clippy",
         "defmt",
+        "devcontainers",
         "docsrs",
         "Haddad",
         "heapless",
