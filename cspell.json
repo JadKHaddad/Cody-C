@@ -8,6 +8,7 @@
         "docsrs",
         "Haddad",
         "heapless",
+        "MSRV",
         "nextest",
         "repr",
         "rustdoc",
