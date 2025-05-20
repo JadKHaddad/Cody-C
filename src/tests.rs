@@ -33,7 +33,7 @@ macro_rules! framed_read {
 
         let buffer = &mut [0_u8; $buffer_size];
         let mut framer =
-            FramedRead::new(buffer, decoder_clone, embedded_io_adapters::tokio_1::FromTokio::new(read));
+            crate::FramedRead::new(decoder_clone, embedded_io_adapters::tokio_1::FromTokio::new(read), buffer);
 
         loop {
             match framer.read_frame().await {
@@ -42,7 +42,7 @@ macro_rules! framed_read {
                 }
                 Ok(None) => {}
                 Err(_err) => {
-                    error!("Error: {:?}", _err);
+                    crate::logging::error!("Error: {:?}", _err);
 
                     $(
                         assert!(matches!(_err, ReadError::$err));
@@ -65,10 +65,10 @@ macro_rules! sink_stream {
 
         tokio::spawn(async move {
             let buffer = &mut [0_u8; 1024];
-            let mut writer = FramedWrite::new(
-                buffer,
+            let mut writer = crate::FramedWrite::new(
                 $encoder,
                 embedded_io_adapters::tokio_1::FromTokio::new(write),
+                buffer,
             );
             let sink = writer.sink();
 
@@ -80,10 +80,10 @@ macro_rules! sink_stream {
         });
 
         let buffer = &mut [0_u8; 1024];
-        let mut framer = FramedRead::new(
-            buffer,
+        let mut framer = crate::FramedRead::new(
             $decoder,
             embedded_io_adapters::tokio_1::FromTokio::new(read),
+            buffer,
         );
 
         let stream = framer.stream();

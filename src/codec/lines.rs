@@ -143,8 +143,7 @@ mod test {
     use tokio::io::AsyncWriteExt;
 
     use crate::{
-        FramedRead, FramedWrite, ReadError,
-        logging::error,
+        ReadError,
         tests::{framed_read, init_tracing, sink_stream},
     };
 
