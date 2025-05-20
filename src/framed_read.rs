@@ -104,48 +104,6 @@ impl<const N: usize> ReadFrame<N> {
             buffer,
         }
     }
-
-    /// Returns the current index in the buffer.
-    #[inline]
-    pub const fn index(&self) -> usize {
-        self.index
-    }
-
-    /// Returns whether EOF was reached while decoding.
-    #[inline]
-    pub const fn eof(&self) -> bool {
-        self.eof
-    }
-
-    /// Returns whether the buffer is currently framable.
-    #[inline]
-    pub const fn is_framable(&self) -> bool {
-        self.is_framable
-    }
-
-    /// Returns the total number of bytes decoded in a framing round.
-    #[inline]
-    pub const fn total_consumed(&self) -> usize {
-        self.total_consumed
-    }
-
-    /// Returns the number of bytes that can be framed.
-    #[inline]
-    pub const fn framable(&self) -> usize {
-        self.index - self.total_consumed
-    }
-
-    /// Returns a reference to the underlying buffer.
-    #[inline]
-    pub const fn buffer(&self) -> &[u8; N] {
-        &self.buffer
-    }
-
-    /// Returns a mutable reference to the underlying buffer.
-    #[inline]
-    pub fn buffer_mut(&mut self) -> &mut [u8; N] {
-        &mut self.buffer
-    }
 }
 
 /// A framer that reads frames from an [`AsyncRead`] source and decodes them using a [`Decoder`] or [`DecoderOwned`].
@@ -202,32 +160,10 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
         &mut self.reader
     }
 
-    /// Returns reference to the internal state.
+    /// Consumes the [`FramedRead`] and returns the `decoder` and `reader`.
     #[inline]
-    pub const fn state(&self) -> &ReadFrame<N> {
-        &self.state
-    }
-
-    /// Returns mutable reference to the internal state.
-    #[inline]
-    pub fn state_mut(&mut self) -> &mut ReadFrame<N> {
-        &mut self.state
-    }
-
-    /// Consumes the [`FramedRead`] and returns the `decoder`, `reader`, and `internal state`.
-    #[inline]
-    pub fn into_parts(self) -> (ReadFrame<N>, D, R) {
-        (self.state, self.decoder, self.reader)
-    }
-
-    /// Creates a new [`FramedRead`] from the given `decoder`, `reader`, and `internal state`.
-    #[inline]
-    pub fn from_parts(state: ReadFrame<N>, decoder: D, reader: R) -> Self {
-        Self {
-            state,
-            decoder,
-            reader,
-        }
+    pub fn into_parts(self) -> (D, R) {
+        (self.decoder, self.reader)
     }
 
     /// Tries to read a frame from the underlying reader.

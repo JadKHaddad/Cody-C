@@ -67,18 +67,6 @@ impl<const N: usize> WriteFrame<N> {
     pub const fn new_with_buffer(buffer: [u8; N]) -> Self {
         Self { buffer }
     }
-
-    /// Returns a reference to the underlying buffer.
-    #[inline]
-    pub const fn buffer(&self) -> &[u8; N] {
-        &self.buffer
-    }
-
-    /// Returns a mutable reference to the underlying buffer.
-    #[inline]
-    pub fn buffer_mut(&mut self) -> &mut [u8; N] {
-        &mut self.buffer
-    }
 }
 
 /// A sink that writes encoded frames into an underlying writable sink using an [`Encoder`].
@@ -135,32 +123,10 @@ impl<const N: usize, E, W> FramedWrite<N, E, W> {
         &mut self.writer
     }
 
-    /// Returns reference to the internal state.
+    /// Consumes the [`FramedWrite`] and returns the `encoder` and `writer`.
     #[inline]
-    pub const fn state(&self) -> &WriteFrame<N> {
-        &self.state
-    }
-
-    /// Returns mutable reference to the internal state.
-    #[inline]
-    pub fn state_mut(&mut self) -> &mut WriteFrame<N> {
-        &mut self.state
-    }
-
-    /// Consumes the [`FramedWrite`] and returns the `encoder`, `writer`, and `internal state`.
-    #[inline]
-    pub fn into_parts(self) -> (WriteFrame<N>, E, W) {
-        (self.state, self.encoder, self.writer)
-    }
-
-    /// Creates a new [`FramedWrite`] from the given `encoder`, `writer`, and `internal state`.
-    #[inline]
-    pub fn from_parts(state: WriteFrame<N>, encoder: E, writer: W) -> Self {
-        Self {
-            state,
-            encoder,
-            writer,
-        }
+    pub fn into_parts(self) -> (E, W) {
+        (self.encoder, self.writer)
     }
 
     /// Writes a frame to the underlying `writer` and flushes it.
