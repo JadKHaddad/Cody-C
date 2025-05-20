@@ -1,10 +1,10 @@
 //! Logging utilities.
 
-#![allow(missing_docs)]
+mod formatter;
 
-pub mod formatter;
+#[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
+pub(crate) use formatter::Formatter;
 
-#[macro_export]
 macro_rules! trace {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -18,7 +18,6 @@ macro_rules! trace {
     };
 }
 
-#[macro_export]
 macro_rules! debug {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -32,7 +31,6 @@ macro_rules! debug {
     };
 }
 
-#[macro_export]
 macro_rules! error {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
@@ -46,22 +44,7 @@ macro_rules! error {
     };
 }
 
-#[macro_export]
-macro_rules! info {
-    ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
-        tracing::info!($($arg)*);
-
-        #[cfg(feature = "log")]
-        log::info!($($arg)*);
-
-        #[cfg(feature = "defmt")]
-        defmt::info!($($arg)*);
-    };
-}
-
-#[macro_export]
-macro_rules! warn {
+macro_rules! warn_ {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
         tracing::warn!($($arg)*);
@@ -73,3 +56,8 @@ macro_rules! warn {
         defmt::warn!($($arg)*);
     };
 }
+
+pub(crate) use debug;
+pub(crate) use error;
+pub(crate) use trace;
+pub(crate) use warn_ as warn;

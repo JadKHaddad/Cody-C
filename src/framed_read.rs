@@ -3,15 +3,13 @@
 use futures::Stream;
 
 use crate::{
-    debug,
     decode::{Decoder, DecoderOwned},
-    error,
     io::AsyncRead,
-    trace, warn,
+    logging::{debug, error, trace, warn},
 };
 
 #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
-use crate::logging::formatter::Formatter;
+use crate::logging::Formatter;
 
 /// An error that can occur while reading a frame from an [`AsyncRead`] source.
 #[derive(Debug)]
@@ -270,7 +268,7 @@ impl<const N: usize, D, R> FramedRead<N, D, R> {
 
         if self.state.is_framable {
             if self.state.eof {
-                crate::trace!("Framing on EOF");
+                crate::logging::trace!("Framing on EOF");
 
                 match self
                     .decoder

@@ -3,9 +3,13 @@
 use futures::Sink;
 
 #[cfg(any(feature = "log", feature = "defmt", feature = "tracing"))]
-use crate::logging::formatter::Formatter;
+use crate::logging::Formatter;
 
-use crate::{debug, encode::Encoder, io::AsyncWrite, warn};
+use crate::{
+    encode::Encoder,
+    io::AsyncWrite,
+    logging::{debug, warn},
+};
 
 /// An error that can occur while writing a frame.
 #[derive(Debug)]
