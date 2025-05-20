@@ -106,7 +106,7 @@ pub struct FramedRead<'buf, D, R> {
 impl<'buf, D, R> FramedRead<'buf, D, R> {
     /// Creates a new [`FramedRead`] with the given `decoder` and `reader`.
     #[inline]
-    pub fn new(buffer: &'buf mut [u8], decoder: D, reader: R) -> Self {
+    pub fn new(decoder: D, reader: R, buffer: &'buf mut [u8]) -> Self {
         Self {
             state: ReadFrame::new(buffer),
             decoder,

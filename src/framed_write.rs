@@ -69,7 +69,7 @@ pub struct FramedWrite<'buf, E, W> {
 impl<'buf, E, W> FramedWrite<'buf, E, W> {
     /// Creates a new [`FramedWrite`] with the given `encoder` and `writer`.
     #[inline]
-    pub fn new(buffer: &'buf mut [u8], encoder: E, writer: W) -> Self {
+    pub fn new(encoder: E, writer: W, buffer: &'buf mut [u8]) -> Self {
         Self {
             state: WriteFrame::new(buffer),
             encoder,
