@@ -458,14 +458,14 @@ mod test {
             tokio_stream_write,
         ] {
             tokio::spawn(async move {
-                let mut witer = FramedWrite::new_with_buffer(
+                let mut writer = FramedWrite::new_with_buffer(
                     BincodeCodec::<BincodeMessage>::new(),
                     Compat::new(write),
                     [0_u8; 1024],
                 );
 
                 for item in test_messages() {
-                    witer.send_frame(item).await.expect("Must send");
+                    writer.send_frame(item).await.expect("Must send");
                 }
             });
         }
@@ -488,13 +488,13 @@ mod test {
             tokio_stream_write,
         ] {
             tokio::spawn(async move {
-                let mut witer = FramedWrite::new_with_buffer(
+                let mut writer = FramedWrite::new_with_buffer(
                     BincodeCodec::<BincodeMessage>::new(),
                     Compat::new(write),
                     [0_u8; 1024],
                 );
 
-                let sink = witer.sink();
+                let sink = writer.sink();
 
                 pin_mut!(sink);
 

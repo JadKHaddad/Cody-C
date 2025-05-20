@@ -78,7 +78,7 @@ impl<const N: usize> WriteFrame<N> {
     }
 }
 
-/// A sink that writes endoded frames into an underlying writable sink using an [`Encoder`].
+/// A sink that writes encoded frames into an underlying writable sink using an [`Encoder`].
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct FramedWrite<const N: usize, E, W> {

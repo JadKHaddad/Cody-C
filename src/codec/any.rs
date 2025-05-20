@@ -90,7 +90,7 @@ impl<'buf> Decoder<'buf> for AnyDelimiterCodec<'_> {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum AnyDelimiterEncodeError {
-    /// The input buffer is too small to fit the encoded sequesnce of bytes.
+    /// The input buffer is too small to fit the encoded sequence of bytes.
     BufferTooSmall,
 }
 
@@ -207,6 +207,7 @@ mod test {
     async fn framed_read() {
         init_tracing();
 
+        // cspell: disable
         let items: &[&[u8]] = &[
             b"jh asjd##ppppppppppppppp##",
             b"k hb##jsjuwjal kadj##jsadhjiu##w",
@@ -216,6 +217,7 @@ mod test {
             b"jdasd##iouqw es",
             b"sd##k",
         ];
+        // cspell: enable
 
         let decoder = AnyDelimiterCodec::new(b"##");
 
@@ -235,6 +237,8 @@ mod test {
         framed_read!(items, expected, decoder, 4, 2, BufferTooSmall);
         framed_read!(items, expected, decoder, 4, 4, BufferTooSmall);
 
+        // cspell: disable
+
         let expected: &[&[u8]] = &[b"jh asjd"];
         framed_read!(items, expected, decoder, 16, BufferTooSmall);
 
@@ -250,6 +254,9 @@ mod test {
             b"askdn asjdasd",
             b"iouqw essd",
         ];
+
+        // cspell: enable
+
         framed_read!(items, expected, decoder, 32, BytesRemainingOnStream);
         framed_read!(items, expected, decoder, 32, 1, BytesRemainingOnStream);
         framed_read!(items, expected, decoder, 32, 2, BytesRemainingOnStream);

@@ -1,0 +1,20 @@
+{
+    "version": "0.2",
+    "language": "en",
+    "words": [
+        "byteorder",
+        "clippy",
+        "defmt",
+        "docsrs",
+        "Haddad",
+        "heapless",
+        "nextest",
+        "repr",
+        "rustdoc",
+        "serde",
+        "zerocopy"
+    ],
+    "ignorePaths": [
+        "target"
+    ]
+}

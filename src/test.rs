@@ -65,9 +65,9 @@ macro_rules! sink_stream {
         let (read, write) = tokio::io::duplex(1024);
 
         tokio::spawn(async move {
-            let mut witer =
+            let mut writer =
                 FramedWrite::new_with_buffer($encoder, Compat::new(write), [0_u8; 1024]);
-            let sink = witer.sink();
+            let sink = writer.sink();
 
             pin_mut!(sink);
 

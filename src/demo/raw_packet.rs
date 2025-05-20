@@ -71,13 +71,13 @@ impl RawPacket {
                     return Ok(None);
                 }
 
-                let recieved_checksum = header.checksum();
+                let received_checksum = header.checksum();
 
                 header.clear_checksum();
 
                 let calculated_checksum = Header::calculate_checksum(&src[..packet_length]);
 
-                if recieved_checksum != calculated_checksum {
+                if received_checksum != calculated_checksum {
                     return Err(RawPacketFromSliceError::Checksum);
                 }
 

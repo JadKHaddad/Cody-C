@@ -1,4 +1,4 @@
-//! Logging untilities.
+//! Logging utilities.
 
 #![allow(missing_docs)]
 
