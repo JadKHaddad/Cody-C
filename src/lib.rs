@@ -1,6 +1,6 @@
 //! # Cody the codec
 //!
-//! A simple and `zerocopy` codec for encoding and decoding data in `no_std` environments.
+//! Project moved to `fraims` on [`crates.io`](https://crates.io/crates/fraims), [`github`](https://github.com/JadKHaddad/fraims)
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(unsafe_code)]
