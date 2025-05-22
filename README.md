@@ -1,3 +1,3 @@
 # Cody the codec
 
-A simple and `zerocopy` codec for encoding and decoding data in `no_std` environments.
+Project moved to `fraims`. [`crates.io`](https://crates.io/crates/fraims), [`github`](https://github.com/JadKHaddad/fraims)
