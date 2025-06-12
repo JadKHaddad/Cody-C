@@ -1,3 +1,3 @@
 # Cody the codec
 
-Project moved to `fraims` on [`crates.io`](https://crates.io/crates/fraims), [`github`](https://github.com/JadKHaddad/fraims)
+Project moved to `framez` on [`crates.io`](https://crates.io/crates/framez), [`github`](https://github.com/JadKHaddad/framez)
